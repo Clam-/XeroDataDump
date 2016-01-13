@@ -1,0 +1,64 @@
+﻿<Window x:Class="XeroDataDump.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:XeroDataDump"
+        mc:Ignorable="d"
+		x:Name="mainwin"
+        Title="XeroDataDump" Height="350" Width="525">
+    <Window.Resources>
+        <local:EnumToBoolConverter x:Key="EBConverter"/>
+		<Style x:Key="BaseStyle" TargetType="FrameworkElement">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="5" />
+        </Style>
+        <Style TargetType="Label" BasedOn="{StaticResource BaseStyle}" />
+        <Style TargetType="Button" BasedOn="{StaticResource BaseStyle}" />
+        <Style TargetType="RadioButton" BasedOn="{StaticResource BaseStyle}">
+			<Setter Property="GroupName" Value="Delimiter" />
+        </Style>
+        <Style TargetType="TextBox" BasedOn="{StaticResource BaseStyle}"/>
+        <Style TargetType="ComboBox" BasedOn="{StaticResource BaseStyle}"/>
+    </Window.Resources>
+	
+    <Grid Margin="5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="1*"/>
+        </Grid.RowDefinitions>
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+				<ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="1*"/>
+                <ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <RadioButton Grid.Column="0" GroupName="TimeFrame" Content="Year to Date" 
+						 IsChecked="{Binding ElementName=mainwin,Path=TimeFrame, Converter={StaticResource EBConverter}, ConverterParameter=YTD}"/>
+            <RadioButton Grid.Column="2" GroupName="TimeFrame" Content="Monthly" 
+						 IsChecked="{Binding ElementName=mainwin,Path=TimeFrame, Converter={StaticResource EBConverter}, ConverterParameter=Monthly}"/>
+            <Label Grid.Column="3" Content="For month of:" Margin="0,-2,0,0"/>
+			<TextBox Name="Year" Grid.Column="4" Width="50"/>
+            <ComboBox Name="Month" Grid.Column="5" SelectedIndex="0" ItemsSource="{Binding ElementName=mainwin,Path=Months}"> </ComboBox>
+        </Grid>
+        <Grid Grid.Row="1">
+            
+        </Grid>
+        <Grid Grid.Row="2">
+            
+        </Grid>
+
+        <Grid Grid.Row="3">
+            <Button Name="GetDataButton" Content="Dump Data in to Excel" Click="GetDataButton_Click"/>
+        </Grid>
+        <Grid Grid.Row="4">
+            <TextBox Name="Log" VerticalAlignment="Stretch" FontFamily="Courier New" FontSize="14.667"/>
+        </Grid>
+    </Grid>
+</Window>
