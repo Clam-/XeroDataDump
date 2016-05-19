@@ -1,0 +1,15 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="XeroDataDump" GeneratedClassName="Options">
+  <Profiles />
+  <Settings>
+    <Setting Name="OrganisationName" Type="System.String" Scope="User">
+      <Value Profile="(Default)">Change Me</Value>
+    </Setting>
+    <Setting Name="Month" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">0</Value>
+    </Setting>
+    <Setting Name="Year" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">2015</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>

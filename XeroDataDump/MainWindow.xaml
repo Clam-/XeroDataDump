@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:XeroDataDump"
         mc:Ignorable="d"
 		x:Name="mainwin"
-        Title="XeroDataDump" Height="350" Width="525">
+        Title="XeroDataDump" Height="450" Width="560">
     <Window.Resources>
         <local:EnumToBoolConverter x:Key="EBConverter"/>
 		<Style x:Key="BaseStyle" TargetType="FrameworkElement">
@@ -28,36 +28,82 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="Auto"/>
             <RowDefinition Height="1*"/>
         </Grid.RowDefinitions>
-        <Grid Grid.Row="0">
+
+		<Grid Grid.Row="0">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="1*"/>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="Auto"/>
+			</Grid.ColumnDefinitions>
+			<Label Grid.Column="0" Content="Org Name:" />
+			<TextBox Name="OrgName" Grid.Column="1" Text="Test" LostFocus="OrgName_LostFocus"/>
+		</Grid>
+		
+		<Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
 				<ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="1*"/>
+                <ColumnDefinition Width="0.5*"/>
                 <ColumnDefinition Width="Auto"/>
 				<ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <RadioButton Grid.Column="0" GroupName="TimeFrame" Content="Year to Date" 
-						 IsChecked="{Binding ElementName=mainwin,Path=TimeFrame, Converter={StaticResource EBConverter}, ConverterParameter=YTD}"/>
-            <RadioButton Grid.Column="2" GroupName="TimeFrame" Content="Monthly" 
-						 IsChecked="{Binding ElementName=mainwin,Path=TimeFrame, Converter={StaticResource EBConverter}, ConverterParameter=Monthly}"/>
-            <Label Grid.Column="3" Content="For month of:" Margin="0,-2,0,0"/>
-			<TextBox Name="Year" Grid.Column="4" Width="50"/>
-            <ComboBox Name="Month" Grid.Column="5" SelectedIndex="0" ItemsSource="{Binding ElementName=mainwin,Path=Months}"> </ComboBox>
-        </Grid>
-        <Grid Grid.Row="1">
-            
-        </Grid>
+			<Label Grid.Column="0" Content="Year to Date" />
+			<Label Grid.Column="2" Content="Year starts on" Margin="0,-2,0,0"/>
+			<TextBox Name="Year" Grid.Column="4" Width="50" LostFocus="Year_LostFocus"/>
+			<ComboBox Name="Month" Grid.Column="5" SelectedIndex="0" ItemsSource="{Binding ElementName=mainwin,Path=Months}" LostFocus="Month_LostFocus"/>
+		</Grid>
         <Grid Grid.Row="2">
-            
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="1*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Label Grid.Column="0" Content="Time Budget file:" />
+			<TextBox Name="BudgetFname" Grid.Column="1" />
+            <Button Name="BudgetBrowse" Grid.Column="2" Content="Browse" Click="BudgetBrowse_Click"/>
         </Grid>
+		<Grid Grid.Row="3">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="1*"/>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="Auto"/>
+			</Grid.ColumnDefinitions>
+			<Label Grid.Column="0" Content="Cost Budget file:" />
+			<TextBox Name="CostBudgetFname" Grid.Column="1" />
+			<Button Name="CostBudgetBrowse" Grid.Column="2" Content="Browse" Click="CostBudgetBrowse_Click"/>
+		</Grid>
+		<Grid Grid.Row="4">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="1*"/>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="Auto"/>
+			</Grid.ColumnDefinitions>
+			<Label Grid.Column="0" Content="Save to:" />
+			<TextBox Name="SaveName" Grid.Column="1" />
+			<Button Name="SaveBrowse" Grid.Column="2" Content="Browse" Click="SaveBrowse_Click"/>
+		</Grid>
 
-        <Grid Grid.Row="3">
-            <Button Name="GetDataButton" Content="Dump Data in to Excel" Click="GetDataButton_Click"/>
+        <Grid Grid.Row="5">
+            <Button Name="GetDataButton" Content="Dump Data to Excel file" Click="GetDataButton_Click"/>
         </Grid>
-        <Grid Grid.Row="4">
+        <Grid Grid.Row="6">
             <TextBox Name="Log" VerticalAlignment="Stretch" FontFamily="Courier New" FontSize="14.667"/>
         </Grid>
     </Grid>
