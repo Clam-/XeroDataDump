@@ -7,12 +7,11 @@ namespace XeroDataDump
 	public class AustralianPayroll : Xero.Api.Payroll.AustralianPayroll
 	{
 		private static readonly DefaultMapper Mapper = new DefaultMapper();
-		private static readonly Settings ApplicationSettings = new Settings();
 
 		public AustralianPayroll(bool includeRateLimiter = false) :
-			base(ApplicationSettings.Uri,
-				new PrivateAuthenticator(ApplicationSettings.SigningCertificatePath, ApplicationSettings.SigningCertificatePassword),
-				new Consumer(ApplicationSettings.Key, ApplicationSettings.Secret),
+			base(Options.Default.CallbackUrl,
+				new PrivateAuthenticator(Options.Default.CertFile, Options.Default.CertPassword),
+				new Consumer(Options.Default.ConsumerKey, Options.Default.ConsumerSecret),
 				null,
 				Mapper,
 				Mapper,

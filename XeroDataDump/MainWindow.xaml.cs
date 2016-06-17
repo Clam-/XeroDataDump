@@ -8,7 +8,6 @@ using System;
 using System.Threading;
 using Microsoft.Win32;
 using System.IO;
-using System.Configuration;
 
 namespace XeroDataDump
 {
@@ -18,12 +17,9 @@ namespace XeroDataDump
 
 	public partial class MainWindow : Window
 	{
-		static string ORGNAMEKEY = "OrganisationName";
-
-		AustralianPayroll ap;
-		Core c;
 		BackgroundWorker worker;
 		string oldOrgName = "";
+		string oldConsKey = "";
 		int oldYear = 0;
 		int oldMonth = 0;
 
@@ -44,6 +40,7 @@ namespace XeroDataDump
 		{
 			// setup UI
 			InitializeComponent();
+			ToDate.SelectedDate = DateTime.Today;
 			OrgName.Text = Options.Default.OrganisationName ?? OrgName.Text;
 			Month.SelectedIndex = Options.Default.Month;
 			Year.Text = Options.Default.Year.ToString();
@@ -51,13 +48,6 @@ namespace XeroDataDump
 			oldOrgName = OrgName.Text;
 			int.TryParse(Year.Text, out oldYear);
 
-			try {
-				ap = new AustralianPayroll();
-				c = new Core();
-			} catch (CryptographicException) {
-				Log.Text = "Missing certificate information.";
-				GetDataButton.IsEnabled = false;
-			}
 		}
 
 		private void disableUI()
@@ -66,7 +56,6 @@ namespace XeroDataDump
 			SaveName.IsEnabled = false;
 			SaveBrowse.IsEnabled = false;
 			BudgetBrowse.IsEnabled = false;
-			BudgetFname.IsEnabled = false;
 		}
 		private void enableUI()
 		{
@@ -74,7 +63,6 @@ namespace XeroDataDump
 			SaveName.IsEnabled = true;
 			SaveBrowse.IsEnabled = true;
 			BudgetBrowse.IsEnabled = true;
-			BudgetFname.IsEnabled = true;
 		}
 
 		private void GetDataButton_Click(object sender, RoutedEventArgs e)
@@ -89,7 +77,7 @@ namespace XeroDataDump
 				Log.Text = Log.Text + "Budget Time File doesn't exist.\n";
 				return;
 			}
-			List<object> args = new List<object> { OrgName.Text, BudgetFname.Text, SaveName.Text, ap, c };
+			List<object> args = new List<object> { OrgName.Text, BudgetFname.Text, SaveName.Text};
 
 			worker = new BackgroundWorker();
 			worker.WorkerSupportsCancellation = true;
@@ -193,6 +181,28 @@ namespace XeroDataDump
 				OrgName.Text = oldOrgName;
 			}
 		}
+		private void CertPass_LostFocus(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(CertPass.Password))
+			{
+				Options.Default.CertPassword = CertPass.Password;
+				Options.Default.Save();
+			}
+		}
+		private void ConsKey_LostFocus(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(ConsumerKey.Password) && ConsumerKey.Password != oldConsKey)
+			{
+				Options.Default.ConsumerKey = ConsumerKey.Password;
+				Options.Default.Save();
+				oldConsKey = ConsumerKey.Password;
+			}
+			else if (string.IsNullOrWhiteSpace(ConsumerKey.Password))
+			{
+				ConsumerKey.Password = oldConsKey;
+			}
+		}
+
 		private void Year_LostFocus(object sender, RoutedEventArgs e)
 		{
 			if (!string.IsNullOrWhiteSpace(Year.Text) && Year.Text != oldYear.ToString())
@@ -229,12 +239,32 @@ namespace XeroDataDump
 			openDialog.Title = "Open Cost Budget File...";
 			openDialog.ShowDialog();
 
-			// If the file name is not an empty string open it for saving.
+			// If the file name is not an empty string grab it
 			if (openDialog.FileName != "")
 			{
 				// get filename
 				CostBudgetFname.Text = openDialog.FileName;
+				Options.Default.BudgetFile = openDialog.FileName;
+				Options.Default.Save();
+			}
+		}
+
+		private void CertBrowse_Click(object sender, RoutedEventArgs e)
+		{
+			OpenFileDialog openDialog = new OpenFileDialog();
+			openDialog.Filter = "PFX Certificate|*.pfx";
+			openDialog.Title = "Open Private Certificate...";
+			openDialog.ShowDialog();
+
+			// If the file name is not an empty string grab it
+			if (openDialog.FileName != "")
+			{
+				// get filename
+				CertFname.Text = openDialog.FileName;
+				Options.Default.CertFile = openDialog.FileName;
+				Options.Default.Save();
 			}
 		}
 	}
 }
+

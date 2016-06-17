@@ -19,92 +19,132 @@
 			<Setter Property="GroupName" Value="Delimiter" />
         </Style>
         <Style TargetType="TextBox" BasedOn="{StaticResource BaseStyle}"/>
+		<Style TargetType="PasswordBox" BasedOn="{StaticResource BaseStyle}"/>
+		<Style TargetType="DatePicker" BasedOn="{StaticResource BaseStyle}"/>
         <Style TargetType="ComboBox" BasedOn="{StaticResource BaseStyle}"/>
     </Window.Resources>
-	
-    <Grid Margin="5">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-			<RowDefinition Height="Auto"/>
-			<RowDefinition Height="Auto"/>
-            <RowDefinition Height="1*"/>
-        </Grid.RowDefinitions>
+	<TabControl>
+		<TabItem Header="General">
+			<Grid Margin="5">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="1*"/>
+				</Grid.RowDefinitions>
 
-		<Grid Grid.Row="0">
-			<Grid.ColumnDefinitions>
-				<ColumnDefinition Width="Auto"/>
-				<ColumnDefinition Width="1*"/>
-				<ColumnDefinition Width="Auto"/>
-				<ColumnDefinition Width="Auto"/>
-				<ColumnDefinition Width="Auto"/>
-				<ColumnDefinition Width="Auto"/>
-			</Grid.ColumnDefinitions>
-			<Label Grid.Column="0" Content="Org Name:" />
-			<TextBox Name="OrgName" Grid.Column="1" Text="Test" LostFocus="OrgName_LostFocus"/>
-		</Grid>
-		
-		<Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-				<ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="0.5*"/>
-                <ColumnDefinition Width="Auto"/>
-				<ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-			<Label Grid.Column="0" Content="Year to Date" />
-			<Label Grid.Column="2" Content="Year starts on" Margin="0,-2,0,0"/>
-			<TextBox Name="Year" Grid.Column="4" Width="50" LostFocus="Year_LostFocus"/>
-			<ComboBox Name="Month" Grid.Column="5" SelectedIndex="0" ItemsSource="{Binding ElementName=mainwin,Path=Months}" LostFocus="Month_LostFocus"/>
-		</Grid>
-        <Grid Grid.Row="2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="1*"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <Label Grid.Column="0" Content="Time Budget file:" />
-			<TextBox Name="BudgetFname" Grid.Column="1" />
-            <Button Name="BudgetBrowse" Grid.Column="2" Content="Browse" Click="BudgetBrowse_Click"/>
-        </Grid>
-		<Grid Grid.Row="3">
-			<Grid.ColumnDefinitions>
-				<ColumnDefinition Width="Auto"/>
-				<ColumnDefinition Width="1*"/>
-				<ColumnDefinition Width="Auto"/>
-				<ColumnDefinition Width="Auto"/>
-				<ColumnDefinition Width="Auto"/>
-				<ColumnDefinition Width="Auto"/>
-			</Grid.ColumnDefinitions>
-			<Label Grid.Column="0" Content="Cost Budget file:" />
-			<TextBox Name="CostBudgetFname" Grid.Column="1" />
-			<Button Name="CostBudgetBrowse" Grid.Column="2" Content="Browse" Click="CostBudgetBrowse_Click"/>
-		</Grid>
-		<Grid Grid.Row="4">
-			<Grid.ColumnDefinitions>
-				<ColumnDefinition Width="Auto"/>
-				<ColumnDefinition Width="1*"/>
-				<ColumnDefinition Width="Auto"/>
-				<ColumnDefinition Width="Auto"/>
-				<ColumnDefinition Width="Auto"/>
-				<ColumnDefinition Width="Auto"/>
-			</Grid.ColumnDefinitions>
-			<Label Grid.Column="0" Content="Save to:" />
-			<TextBox Name="SaveName" Grid.Column="1" />
-			<Button Name="SaveBrowse" Grid.Column="2" Content="Browse" Click="SaveBrowse_Click"/>
-		</Grid>
+				<Grid Grid.Row="0">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="1*"/>
+					</Grid.ColumnDefinitions>
+					<Label Grid.Column="0" Content="Org Name:" />
+					<TextBox Name="OrgName" Grid.Column="1" Text="Test" LostFocus="OrgName_LostFocus"/>
+				</Grid>
+				<Grid Grid.Row="1">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="1*"/>
+						<ColumnDefinition Width="Auto"/>
+					</Grid.ColumnDefinitions>
+					<Label Grid.Column="0" Content="Private certificate file:" />
+					<TextBox IsEnabled="False" Name="CertFname" Grid.Column="1" />
+					<Button Name="CertBrowse" Grid.Column="2" Content="Browse" Click="CertBrowse_Click"/>
+				</Grid>
+				<Grid Grid.Row="2">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="1*"/>
+					</Grid.ColumnDefinitions>
+					<Label Grid.Column="0" Content="Certificate password:" />
+					<PasswordBox Name="CertPass" Grid.Column="1" LostFocus="CertPass_LostFocus"/>
+				</Grid>
+				<Grid Grid.Row="3">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="1*"/>
+					</Grid.ColumnDefinitions>
+					<Label Grid.Column="0" Content="Xero Consumer Key:" />
+					<PasswordBox Name="ConsumerKey" Grid.Column="1" LostFocus="ConsKey_LostFocus"/>
+				</Grid>
+			</Grid>
+		</TabItem>
+		<TabItem Header="Dump">
+			<Grid Margin="5">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="1*"/>
+				</Grid.RowDefinitions>
 
-        <Grid Grid.Row="5">
-            <Button Name="GetDataButton" Content="Dump Data to Excel file" Click="GetDataButton_Click"/>
-        </Grid>
-        <Grid Grid.Row="6">
-            <TextBox Name="Log" VerticalAlignment="Stretch" FontFamily="Courier New" FontSize="14.667"/>
-        </Grid>
-    </Grid>
+				<Grid Grid.Row="1">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="0.5*"/>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+					</Grid.ColumnDefinitions>
+					<Label Grid.Column="0" Content="Year to " />
+					<DatePicker Name="ToDate" Grid.Column="1"/>
+					<Label Grid.Column="3" Content="Year starts on" Margin="0,-2,0,0"/>
+					<TextBox Name="Year" Grid.Column="4" Width="50" LostFocus="Year_LostFocus"/>
+					<ComboBox Name="Month" Grid.Column="5" SelectedIndex="0" ItemsSource="{Binding ElementName=mainwin,Path=Months}" LostFocus="Month_LostFocus"/>
+				</Grid>
+				<Grid Grid.Row="2">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="1*"/>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+					</Grid.ColumnDefinitions>
+					<Label Grid.Column="0" Content="Time Budget file:" />
+					<TextBox IsEnabled="False" Name="BudgetFname" Grid.Column="1" />
+					<Button Name="BudgetBrowse" Grid.Column="2" Content="Browse" Click="BudgetBrowse_Click"/>
+				</Grid>
+				<Grid Grid.Row="3">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="1*"/>
+						<ColumnDefinition Width="Auto"/>
+					</Grid.ColumnDefinitions>
+					<Label Grid.Column="0" Content="Cost Budget file:" />
+					<TextBox IsEnabled="False" Name="CostBudgetFname" Grid.Column="1" />
+					<Button Name="CostBudgetBrowse" Grid.Column="2" Content="Browse" Click="CostBudgetBrowse_Click"/>
+				</Grid>
+				<Grid Grid.Row="4">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="1*"/>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+					</Grid.ColumnDefinitions>
+					<Label Grid.Column="0" Content="Save to:" />
+					<TextBox Name="SaveName" Grid.Column="1" />
+					<Button Name="SaveBrowse" Grid.Column="2" Content="Browse" Click="SaveBrowse_Click"/>
+				</Grid>
+
+				<Grid Grid.Row="5">
+					<Button Name="GetDataButton" Content="Dump Data to Excel file" Click="GetDataButton_Click"/>
+				</Grid>
+				<Grid Grid.Row="6">
+					<TextBox Name="Log" VerticalAlignment="Stretch" FontFamily="Courier New" FontSize="14.667"/>
+				</Grid>
+			</Grid>
+		</TabItem>
+	</TabControl>
+    
 </Window>

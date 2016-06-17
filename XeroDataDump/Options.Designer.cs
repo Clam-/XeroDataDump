@@ -58,5 +58,89 @@ namespace XeroDataDump {
                 this["Year"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string CertFile {
+            get {
+                return ((string)(this["CertFile"]));
+            }
+            set {
+                this["CertFile"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string CertPassword {
+            get {
+                return ((string)(this["CertPassword"]));
+            }
+            set {
+                this["CertPassword"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("localhost")]
+        public string CallbackUrl {
+            get {
+                return ((string)(this["CallbackUrl"]));
+            }
+            set {
+                this["CallbackUrl"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("https://api.xero.com/api.xro/2.0/")]
+        public string BaseUrl {
+            get {
+                return ((string)(this["BaseUrl"]));
+            }
+            set {
+                this["BaseUrl"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string ConsumerKey {
+            get {
+                return ((string)(this["ConsumerKey"]));
+            }
+            set {
+                this["ConsumerKey"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string ConsumerSecret {
+            get {
+                return ((string)(this["ConsumerSecret"]));
+            }
+            set {
+                this["ConsumerSecret"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string BudgetFile {
+            get {
+                return ((string)(this["BudgetFile"]));
+            }
+            set {
+                this["BudgetFile"] = value;
+            }
+        }
     }
 }

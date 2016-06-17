@@ -11,5 +11,26 @@
     <Setting Name="Year" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">2015</Value>
     </Setting>
+    <Setting Name="CertFile" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="CertPassword" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="CallbackUrl" Type="System.String" Scope="User">
+      <Value Profile="(Default)">localhost</Value>
+    </Setting>
+    <Setting Name="BaseUrl" Type="System.String" Scope="User">
+      <Value Profile="(Default)">https://api.xero.com/api.xro/2.0/</Value>
+    </Setting>
+    <Setting Name="ConsumerKey" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="ConsumerSecret" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="BudgetFile" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
   </Settings>
 </SettingsFile>

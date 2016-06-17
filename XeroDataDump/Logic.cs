@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System;
 using ClosedXML.Excel;
 using Xero.Api.Core.Model.Reports;
+using System.Security.Cryptography;
 
 namespace XeroDataDump
 {
@@ -44,6 +45,19 @@ namespace XeroDataDump
 				worker.ReportProgress(0, msg+"\n");
 		}
 
+		private static void initXero()
+		{
+			try
+			{
+				ap = new AustralianPayroll();
+				c = new Core();
+			}
+			catch (CryptographicException)
+			{
+				LogBox("Missing certificate information.");
+			}
+		}
+
 		private static IXLWorksheet setupWorkbook(XLWorkbook wb, DateTime from, DateTime to, string orgName)
 		{
 			var ws = wb.Worksheets.Add("Overall PL");
@@ -55,7 +69,7 @@ namespace XeroDataDump
 			return ws;
 		}
 
-		private static void addOverallData(IXLWorksheet ws, Core c, DateTime start, DateTime end)
+		private static void addOverallData(IXLWorksheet ws, DateTime start, DateTime end)
 		{
 			// Overall profit and loss report
 			var plReport = c.Reports.ProfitAndLoss(start, from: start, to: end, standardLayout: true);
@@ -145,6 +159,8 @@ namespace XeroDataDump
 
 		internal static void YTDDataDump(object sender, DoWorkEventArgs e)
 		{
+			initXero();
+
 			worker = sender as BackgroundWorker;
 
 			object[] args = (object[])e.Argument;
@@ -170,7 +186,7 @@ namespace XeroDataDump
 
 			var overallws = setupWorkbook(wb, start, end, orgName);
 
-			addOverallData(overallws, c, start, end);
+			addOverallData(overallws, start, end);
 
 			gatherTimesheetsProjects(start, end); // setup projectsTime
 

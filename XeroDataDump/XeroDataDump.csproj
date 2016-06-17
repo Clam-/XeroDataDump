@@ -88,7 +88,6 @@
       <DependentUpon>Options.settings</DependentUpon>
     </Compile>
     <Compile Include="PrivateAuthenticator.cs" />
-    <Compile Include="Settings.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>

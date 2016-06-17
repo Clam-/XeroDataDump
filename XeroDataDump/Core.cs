@@ -8,12 +8,11 @@ namespace XeroDataDump
 	public class Core : XeroCoreApi
 	{
 		private static readonly DefaultMapper Mapper = new DefaultMapper();
-		private static readonly Settings ApplicationSettings = new Settings();
 
 		public Core(bool includeRateLimiter = false) :
-			base(ApplicationSettings.Uri,
-				new PrivateAuthenticator(ApplicationSettings.SigningCertificatePath, ApplicationSettings.SigningCertificatePassword),
-				new Consumer(ApplicationSettings.Key, ApplicationSettings.Secret),
+			base(Options.Default.BaseUrl,
+				new PrivateAuthenticator(Options.Default.CertFile, Options.Default.CertPassword),
+				new Consumer(Options.Default.ConsumerKey, Options.Default.ConsumerSecret),
 				null,
 				Mapper,
 				Mapper,
