@@ -31,6 +31,8 @@ namespace XeroDataDump
 		static int ACTUALPROJCOLUMN = 4;
 		static int BUDGETFULLYRPROJCOLUMN = 7;
 
+		static int POSITIONS = 8; // TODO: CHANGE THIS
+
 		// static int BUDGETTIMEROWSTART = 3; Progmatically find
 		static int BUDGETTIMECOLSEARCH = 2;
 		static string BUDGETTIMESSEARCH = "Total Days YTD";
@@ -45,24 +47,30 @@ namespace XeroDataDump
 				worker.ReportProgress(0, msg+"\n");
 		}
 
-		private static void initXero()
+		private static bool initXero()
 		{
 			try
 			{
 				ap = new AustralianPayroll();
 				c = new Core();
+				return true;
 			}
 			catch (CryptographicException)
 			{
 				LogBox("Missing certificate information.");
 			}
+			catch (ArgumentException)
+			{
+				LogBox("Invalid certificate information");
+			}
+			return false;
 		}
 
-		private static IXLWorksheet setupWorkbook(XLWorkbook wb, DateTime from, DateTime to, string orgName)
+		private static IXLWorksheet setupWorkbook(XLWorkbook wb, DateTime from, DateTime to)
 		{
 			var ws = wb.Worksheets.Add("Overall PL");
 			ws.Cell("A1").Value = "Profit and loss"; ws.Cell("C1").Value = "Begining"; ws.Cell("D1").Value = "Ending";
-			ws.Cell("A2").Value = orgName; ws.Cell("C2").Value = from.ToShortDateString(); ws.Cell("D2").Value = to.ToShortDateString();
+			ws.Cell("A2").Value = Options.Default.OrganisationName; ws.Cell("C2").Value = from.ToShortDateString(); ws.Cell("D2").Value = to.ToShortDateString();
 
 			ws.Cell(OVERALLROWSTART, BUDGETCOLUMN).Value = "Budget"; ws.Cell(OVERALLROWSTART, ACTUALCOLUMN).Value = "Actual";
 			ws.Cell(OVERALLROWSTART, ACTUALCOLUMN+1).Value = "Var $"; ws.Cell(OVERALLROWSTART, ACTUALCOLUMN+2).Value = "Var %";
@@ -100,54 +108,46 @@ namespace XeroDataDump
 			}
 		}
 
-		private static void getInsertBudget(IXLWorksheet ws, DateTime start, DateTime end)
+		private static int searchText(IXLWorksheet ws, int rowi, int coli, string text)
 		{
-			LogBox("Getting Budget\n");
-			var budget = c.Reports.BudgetSummary(date: start, periods: 1, timeFrame: CM.Types.BudgetSummaryTimeframeType.Month);
-			Console.WriteLine("getInsertBudget Fields: " + string.Join(",", budget.Fields.Select(x => x.Value)));
-			var rownum = OVERALLROWSTART + 1;
-			foreach (var row in budget.Rows)
+			var row = ws.Row(rowi);
+			while (!row.Cell(coli).IsEmpty())
 			{
-				foreach (var r in row.Rows ?? Enumerable.Empty<ReportRow>())
+				if ((string)row.Cell(coli).Value == text)
 				{
-					var rowdata = r.Cells;
-					if ((string)ws.Cell(rownum, BUDGETCOLUMN - 1).Value == rowdata[0].Value)
-					{
-						Console.WriteLine(string.Format("Looking for ({0}) FOUND ({1})", (string)ws.Cell(rownum, BUDGETCOLUMN - 1).Value, rowdata[0].Value));
-						ws.Cell(rownum, BUDGETCOLUMN).Value = rowdata[1].Value;
-					}
-					else
-					{
-						Console.WriteLine(string.Format("Looking for ({0}) NOT FOUND...", (string)ws.Cell(rownum, BUDGETCOLUMN - 1).Value));
-						// find corresponding row for data
-						var irow = rownum; var found = true;
-						while ((string)ws.Cell(irow, BUDGETCOLUMN - 1).Value != rowdata[0].Value)
-						{
-							Console.WriteLine(string.Format("Looking in ({0}) for ({1}) GOT ({2}).", irow, (string)ws.Cell(irow, BUDGETCOLUMN - 1).Value, rowdata[0].Value));
-							irow++;
-							if (irow >= ws.LastRowUsed().RowNumber())
-							{
-								Console.WriteLine("REACHED END.");
-								found = false;
-								break;
-							}
-						}
-						if (found)
-						{
-							Console.WriteLine(string.Format("FOUND ({0}) at ({1}).", (string)ws.Cell(rownum, BUDGETCOLUMN - 1).Value, irow));
-							rownum = irow;
-						}
-						else
-						{
-							Console.WriteLine("Didn't find. Inserting.");
-							ws.Row(rownum).InsertRowsAbove(1);
-							ws.Cell(rownum, ACTUALCOLUMN).Value = 0;
-						}
-						ws.Cell(rownum, BUDGETCOLUMN-1).Value = rowdata[0].Value;
-						ws.Cell(rownum, BUDGETCOLUMN).Value = rowdata[1].Value;
-					}
-					rownum++;
+					return row.RowNumber();
 				}
+				row = row.RowBelow();
+			}
+			throw new ArgumentException("Text not found");
+		}
+		
+		private static void processOverallCostBudget(IXLWorksheet ws, XLWorkbook budget, int months)
+		{
+			LogBox("Processing Overall Budget\n");
+			var sheet = budget.Worksheet("Overall");
+			var rownum = OVERALLROWSTART + 1;
+			var row = sheet.Row(Options.Default.CostBudgetRow);
+			row = row.RowBelow();
+
+			while (!row.Cell(Options.Default.CostBudgetACCol).IsEmpty())
+			{
+				var ac = (string)row.Cell(Options.Default.CostBudgetACCol).Value;
+
+				int irow = -1;
+				try
+				{
+					irow = searchText(ws, rownum, 1, ac);
+				} catch (ArgumentException)
+				{
+					// append
+					LogBox("Append: " + ac);
+				}
+				if (irow > 0) {
+					LogBox("Summing: " + (Options.Default.CostBudgetYearCol + 1) + " - " + (Options.Default.CostBudgetYearCol + months));
+					ws.Cell(irow, BUDGETCOLUMN).Value = row.Cells(Options.Default.CostBudgetYearCol + 1, Options.Default.CostBudgetYearCol + months).Sum(cell => { double val = 0; cell.TryGetValue(out val); return val; });
+				}
+				row = row.RowBelow();
 			}
 		}
 
@@ -159,18 +159,17 @@ namespace XeroDataDump
 
 		internal static void YTDDataDump(object sender, DoWorkEventArgs e)
 		{
-			initXero();
-
 			worker = sender as BackgroundWorker;
 
+			if (!initXero()) { return; }
+
 			object[] args = (object[])e.Argument;
-			string orgName = (string)args[0];
-			string budgetfname = (string)args[1];
-			string savefname = (string)args[2];
-			ap = (AustralianPayroll)args[3];
-			c = (Core)args[4];
-			int year = (int)args[5];
-			int month = (int)args[6];
+			//string orgName = (string)args[0];
+			//string budgetfname = (string)args[1];
+			string savefname = System.IO.Path.Combine(Options.Default.OutputDir, "report.xlsx");
+			DateTime to = (DateTime)args[0];
+			int year = (int)args[1];
+			int month = (int)args[2];
 
 			// initialize state
 			initializeState();
@@ -178,21 +177,23 @@ namespace XeroDataDump
 			int days = DateTime.DaysInMonth(year, month);
 
 			var start = new DateTime(year, month, 1);
-			var end = new DateTime(year, month, days);
-
-			LogBox(string.Format("Running Monthly Data Dump for {0}-{1}\n", start.ToShortDateString(), end.ToShortDateString()));
-			var budgetwb = new XLWorkbook(budgetfname);
+			var end = to;
+			var months = 6-month + to.Month;
+			LogBox(string.Format("Running YTD Data Dump for {0}-{1}\n", start.ToShortDateString(), end.ToShortDateString()));
+			var costBudgetwb = new XLWorkbook(Options.Default.CostBudgetFile);
+			var timeBudgetwb = new XLWorkbook(Options.Default.TimeBudgetFile);
 			var wb = new XLWorkbook();
 
-			var overallws = setupWorkbook(wb, start, end, orgName);
+			var overallws = setupWorkbook(wb, start, end);
 
 			addOverallData(overallws, start, end);
 
-			gatherTimesheetsProjects(start, end); // setup projectsTime
+			//gatherTimesheetsProjects(start, end); // setup projectsTime
 
-			getInsertBudget(overallws, start, end);
+			processOverallCostBudget(overallws, costBudgetwb, months);
+			processProjectActualCost(wb, start, end);
 
-			processProjects(budgetwb, wb, start, end);
+			//processProjectsTime(costBudgetwb, wb, start, end);
 
 			// autosize before save
 			foreach (var ws in wb.Worksheets)
@@ -203,6 +204,7 @@ namespace XeroDataDump
 					col.Width = col.Width + 3;
 				}
 			}
+
 			wb.SaveAs(savefname);
 
 			LogBox("Done Monthly dump.\n");
@@ -283,7 +285,7 @@ namespace XeroDataDump
 			return preport;
 		}
 
-		private static void processProjects(XLWorkbook bwb, XLWorkbook wb, DateTime from, DateTime to)
+		private static void processProjectsTime(XLWorkbook bwb, XLWorkbook wb, DateTime from, DateTime to)
 		{
 			// dump employee hour data
 			foreach (var project in projectsTime)
@@ -324,7 +326,10 @@ namespace XeroDataDump
 					ws.Cell(rownum, BUDGETPROJCOLUMN).Value = budgetemps[ik];
 				}
 			}
-			
+		}
+
+		private static void processProjectActualCost(XLWorkbook wb, DateTime from, DateTime to)
+		{
 			// dump remaining project data...
 			var projectReports = getProjectsProfitLoss(from, to);
 			var categories = projectReports[""];
@@ -359,7 +364,7 @@ namespace XeroDataDump
 					ws.Cell(rownum, ACTUALPROJCOLUMN).Value = line;
 					i++; rownum++;
 				}
-				
+
 			}
 		}
 

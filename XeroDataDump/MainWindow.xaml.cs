@@ -1,5 +1,4 @@
 ﻿
-using System.Security.Cryptography;
 using System.Windows;
 using System.ComponentModel;
 using System.Collections.Generic;
@@ -8,6 +7,7 @@ using System;
 using System.Threading;
 using Microsoft.Win32;
 using System.IO;
+using Microsoft.WindowsAPICodePack.Dialogs;
 
 namespace XeroDataDump
 {
@@ -41,13 +41,30 @@ namespace XeroDataDump
 			// setup UI
 			InitializeComponent();
 			ToDate.SelectedDate = DateTime.Today;
-			OrgName.Text = Options.Default.OrganisationName ?? OrgName.Text;
-			Month.SelectedIndex = Options.Default.Month;
-			Year.Text = Options.Default.Year.ToString();
+			initStoredValues();
 			oldMonth = Month.SelectedIndex;
 			oldOrgName = OrgName.Text;
 			int.TryParse(Year.Text, out oldYear);
+		}
 
+		private void initStoredValues()
+		{
+			CostBudgetFname.Text = Options.Default.CostBudgetFile;
+			TimeBudgetFname.Text = Options.Default.TimeBudgetFile;
+			OrgName.Text = Options.Default.OrganisationName ?? OrgName.Text;
+			Month.SelectedIndex = Options.Default.Month;
+			Year.Text = Options.Default.Year.ToString();
+			SaveName.Text = Options.Default.OutputDir;
+			CertFname.Text = Options.Default.CertFile;
+			ConsumerKey.Password = Options.Default.ConsumerKey;
+			CertPass.Password = Options.Default.CertPassword;
+
+			CostBudgetRow.Text = Options.Default.CostBudgetRow.ToString();
+			CostBudgetACCol.Text = Options.Default.CostBudgetACCol.ToString();
+			CostBudgetYearCol.Text = Options.Default.CostBudgetYearCol.ToString();
+			TimeBudgetDateRow.Text = Options.Default.TimeBudgetDateRow.ToString();
+			TimeBudgetPosCol.Text = Options.Default.TimeBudgetPosCol.ToString();
+			TimeBudgetYearCol.Text = Options.Default.TimeBudgetYearCol.ToString();
 		}
 
 		private void disableUI()
@@ -67,17 +84,17 @@ namespace XeroDataDump
 
 		private void GetDataButton_Click(object sender, RoutedEventArgs e)
 		{
-			if (string.IsNullOrWhiteSpace(SaveName.Text) || string.IsNullOrWhiteSpace(BudgetFname.Text))
+			if (string.IsNullOrWhiteSpace(Options.Default.CostBudgetFile) || string.IsNullOrWhiteSpace(Options.Default.TimeBudgetFile) || string.IsNullOrWhiteSpace(Options.Default.OutputDir))
 			{
-				Log.Text = Log.Text + "Require filename for Save File and Budget Time File.\n";
+				Log.Text = Log.Text + "Require Time Budget file, Cost Budget file and Output folder.\n";
 				return;
 			}
-			if (!File.Exists(BudgetFname.Text))
+			if (!File.Exists(TimeBudgetFname.Text))
 			{
 				Log.Text = Log.Text + "Budget Time File doesn't exist.\n";
 				return;
 			}
-			List<object> args = new List<object> { OrgName.Text, BudgetFname.Text, SaveName.Text};
+			List<object> args = new List<object> { ToDate.SelectedDate };
 
 			worker = new BackgroundWorker();
 			worker.WorkerSupportsCancellation = true;
@@ -101,7 +118,7 @@ namespace XeroDataDump
 
 		}
 
-		private void BudgetBrowse_Click(object sender, RoutedEventArgs e)
+		private void TimeBudgetBrowse_Click(object sender, RoutedEventArgs e)
 		{
 			OpenFileDialog openDialog = new OpenFileDialog();
 			openDialog.Filter = "Excel Workbook|*.xlsx";
@@ -112,24 +129,35 @@ namespace XeroDataDump
 			if (openDialog.FileName != "")
 			{
 				// get filename
-				BudgetFname.Text = openDialog.FileName;
+				TimeBudgetFname.Text = openDialog.FileName;
+				Options.Default.TimeBudgetFile = openDialog.FileName;
+				Options.Default.Save();
 			}
 		}
 		private void SaveBrowse_Click(object sender, RoutedEventArgs e)
 		{
 			// Displays a SaveFileDialog so the user can save the Image
 			// assigned to Button2. https://msdn.microsoft.com/en-us/library/sfezx97z(v=vs.110).aspx
-			SaveFileDialog saveDialog = new SaveFileDialog();
-			saveDialog.Filter = "Excel Workbook|*.xlsx";
-			saveDialog.Title = "Save to location...";
-			saveDialog.ShowDialog();
+			CommonOpenFileDialog cofd = new CommonOpenFileDialog();
+			cofd.IsFolderPicker = true;
+			cofd.Title = "Save to folder...";
+			cofd.ShowDialog();
+
+			//SaveFileDialog saveDialog = new SaveFileDialog();
+			//saveDialog.Filter = "Excel Workbook|*.xlsx";
+			//saveDialog.Title = "Save to location...";
+			//saveDialog.ShowDialog();
 
 			// If the file name is not an empty string open it for saving.
-			if (saveDialog.FileName != "")
-			{
-				// get filename
-				SaveName.Text = saveDialog.FileName;
-			}
+			try {
+				if (cofd.FileName != "")
+				{
+					// get filename
+					SaveName.Text = cofd.FileName;
+					Options.Default.OutputDir = cofd.FileName;
+					Options.Default.Save();
+				} }
+			catch (InvalidOperationException) { }
 		}
 
 		void worker_ProgressChanged(object sender, ProgressChangedEventArgs e)
@@ -183,11 +211,8 @@ namespace XeroDataDump
 		}
 		private void CertPass_LostFocus(object sender, RoutedEventArgs e)
 		{
-			if (!string.IsNullOrWhiteSpace(CertPass.Password))
-			{
-				Options.Default.CertPassword = CertPass.Password;
-				Options.Default.Save();
-			}
+			Options.Default.CertPassword = CertPass.Password;
+			Options.Default.Save();
 		}
 		private void ConsKey_LostFocus(object sender, RoutedEventArgs e)
 		{
@@ -244,7 +269,7 @@ namespace XeroDataDump
 			{
 				// get filename
 				CostBudgetFname.Text = openDialog.FileName;
-				Options.Default.BudgetFile = openDialog.FileName;
+				Options.Default.CostBudgetFile = openDialog.FileName;
 				Options.Default.Save();
 			}
 		}
@@ -263,6 +288,108 @@ namespace XeroDataDump
 				CertFname.Text = openDialog.FileName;
 				Options.Default.CertFile = openDialog.FileName;
 				Options.Default.Save();
+			}
+		}
+
+		private void CostBudgetRow_LostFocus(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(CostBudgetRow.Text))
+			{
+				int num = 1;
+				if (int.TryParse(CostBudgetRow.Text, out num))
+				{
+					Options.Default.CostBudgetRow = num;
+					Options.Default.Save();
+				}
+				else {
+					Log.Text = Log.Text + "Cost Row is not a number.\n";
+					return;
+				}
+			}
+		}
+
+		private void CostBudgetACCol_LostFocus(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(CostBudgetACCol.Text))
+			{
+				int num = 1;
+				if (int.TryParse(CostBudgetACCol.Text, out num))
+				{
+					Options.Default.CostBudgetACCol = num;
+					Options.Default.Save();
+				}
+				else {
+					Log.Text = Log.Text + "Cost AC Column is not a number.\n";
+					return;
+				}
+			}
+		}
+
+		private void CostBudgetYearCol_LostFocus(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(CostBudgetYearCol.Text))
+			{
+				int num = 1;
+				if (int.TryParse(CostBudgetYearCol.Text, out num))
+				{
+					Options.Default.CostBudgetYearCol = num;
+					Options.Default.Save();
+				}
+				else {
+					Log.Text = Log.Text + "Cost Year Column is not a number.\n";
+					return;
+				}
+			}
+		}
+
+		private void TimeBudgetDateRow_LostFocus(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(TimeBudgetDateRow.Text))
+			{
+				int num = 1;
+				if (int.TryParse(TimeBudgetDateRow.Text, out num))
+				{
+					Options.Default.TimeBudgetDateRow = num;
+					Options.Default.Save();
+				}
+				else {
+					Log.Text = Log.Text + "Time Date Row is not a number.\n";
+					return;
+				}
+			}
+		}
+
+		private void TimeBudgetPosCol_LostFocus(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(TimeBudgetPosCol.Text))
+			{
+				int num = 1;
+				if (int.TryParse(TimeBudgetPosCol.Text, out num))
+				{
+					Options.Default.TimeBudgetPosCol = num;
+					Options.Default.Save();
+				}
+				else {
+					Log.Text = Log.Text + "Time Pos Column is not a number.\n";
+					return;
+				}
+			}
+		}
+
+		private void TimeBudgetYearCol_LostFocus(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(TimeBudgetYearCol.Text))
+			{
+				int num = 1;
+				if (int.TryParse(TimeBudgetYearCol.Text, out num))
+				{
+					Options.Default.TimeBudgetPosCol = num;
+					Options.Default.Save();
+				}
+				else {
+					Log.Text = Log.Text + "Time Year Column is not a number.\n";
+					return;
+				}
 			}
 		}
 	}

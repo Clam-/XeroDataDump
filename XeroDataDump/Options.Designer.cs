@@ -134,12 +134,108 @@ namespace XeroDataDump {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string BudgetFile {
+        public string CostBudgetFile {
             get {
-                return ((string)(this["BudgetFile"]));
+                return ((string)(this["CostBudgetFile"]));
             }
             set {
-                this["BudgetFile"] = value;
+                this["CostBudgetFile"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string TimeBudgetFile {
+            get {
+                return ((string)(this["TimeBudgetFile"]));
+            }
+            set {
+                this["TimeBudgetFile"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string OutputDir {
+            get {
+                return ((string)(this["OutputDir"]));
+            }
+            set {
+                this["OutputDir"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int CostBudgetRow {
+            get {
+                return ((int)(this["CostBudgetRow"]));
+            }
+            set {
+                this["CostBudgetRow"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int CostBudgetACCol {
+            get {
+                return ((int)(this["CostBudgetACCol"]));
+            }
+            set {
+                this["CostBudgetACCol"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int CostBudgetYearCol {
+            get {
+                return ((int)(this["CostBudgetYearCol"]));
+            }
+            set {
+                this["CostBudgetYearCol"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int TimeBudgetDateRow {
+            get {
+                return ((int)(this["TimeBudgetDateRow"]));
+            }
+            set {
+                this["TimeBudgetDateRow"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int TimeBudgetPosCol {
+            get {
+                return ((int)(this["TimeBudgetPosCol"]));
+            }
+            set {
+                this["TimeBudgetPosCol"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int TimeBudgetYearCol {
+            get {
+                return ((int)(this["TimeBudgetYearCol"]));
+            }
+            set {
+                this["TimeBudgetYearCol"] = value;
             }
         }
     }
