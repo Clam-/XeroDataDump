@@ -4,9 +4,11 @@ using System.ComponentModel;
 using System.Linq;
 using System.Collections.Generic;
 using System;
-using ClosedXML.Excel;
+
 using Xero.Api.Core.Model.Reports;
 using System.Security.Cryptography;
+using OfficeOpenXml;
+using System.IO;
 
 namespace XeroDataDump
 {
@@ -17,19 +19,22 @@ namespace XeroDataDump
 		static Dictionary<Guid, List<Tuple<Guid, decimal>>> projectsTime = null;
 
 		static Dictionary<Guid, string> employees = new Dictionary<Guid, string>();
+		static List<string> IncomeAccounts = new List<string>();
 
 		static AustralianPayroll ap = null;
 		static Core c = null;
 
 		static BackgroundWorker worker = null;
 
-		static int BUDGETCOLUMN = 2;
-		static int ACTUALCOLUMN = 3;
+		static int BUDGETCOLUMN = 3;
+		static int ACTUALCOLUMN = 4;
 		static int OVERALLROWSTART = 4;
 		static int PROJETROWSTART = 4;
-		static int BUDGETPROJCOLUMN = 3;
-		static int ACTUALPROJCOLUMN = 4;
-		static int BUDGETFULLYRPROJCOLUMN = 7;
+		static int PROJ_BUDGET_COLUMN = 3;
+		static int PROJ_ACTUAL_COLUMN = 4;
+		static int PROJ_HOURS_ROW = 4;
+		static int PROJ_COST_ROW = 8;
+		static int PROJ_OTHERS_ROW = 12;
 
 		static int POSITIONS = 8; // TODO: CHANGE THIS
 
@@ -66,18 +71,19 @@ namespace XeroDataDump
 			return false;
 		}
 
-		private static IXLWorksheet setupWorkbook(XLWorkbook wb, DateTime from, DateTime to)
+		private static ExcelWorksheet setupWorkbook(ExcelWorkbook wb, DateTime from, DateTime to)
 		{
 			var ws = wb.Worksheets.Add("Overall PL");
-			ws.Cell("A1").Value = "Profit and loss"; ws.Cell("C1").Value = "Begining"; ws.Cell("D1").Value = "Ending";
-			ws.Cell("A2").Value = Options.Default.OrganisationName; ws.Cell("C2").Value = from.ToShortDateString(); ws.Cell("D2").Value = to.ToShortDateString();
+			ws.Cells["A1"].Value = "Profit and loss"; ws.Cells["C1"].Value = "Begining"; ws.Cells["D1"].Value = "Ending";
+			ws.Cells["A2"].Value = Options.Default.OrganisationName; ws.Cells["C2"].Value = from.ToShortDateString(); ws.Cells["D2"].Value = to.ToShortDateString();
 
-			ws.Cell(OVERALLROWSTART, BUDGETCOLUMN).Value = "Budget"; ws.Cell(OVERALLROWSTART, ACTUALCOLUMN).Value = "Actual";
-			ws.Cell(OVERALLROWSTART, ACTUALCOLUMN+1).Value = "Var $"; ws.Cell(OVERALLROWSTART, ACTUALCOLUMN+2).Value = "Var %";
+			ws.Cells[OVERALLROWSTART, BUDGETCOLUMN-1].Value = "Budget Full";
+			ws.Cells[OVERALLROWSTART, BUDGETCOLUMN].Value = "Budget YTD"; ws.Cells[OVERALLROWSTART, ACTUALCOLUMN].Value = "Actual";
+			ws.Cells[OVERALLROWSTART, ACTUALCOLUMN+1].Value = "Var $"; ws.Cells[OVERALLROWSTART, ACTUALCOLUMN+2].Value = "Var %";
 			return ws;
 		}
 
-		private static void addOverallData(IXLWorksheet ws, DateTime start, DateTime end)
+		private static void addOverallData(ExcelWorksheet ws, DateTime start, DateTime end)
 		{
 			// Overall profit and loss report
 			var plReport = c.Reports.ProfitAndLoss(start, from: start, to: end, standardLayout: true);
@@ -94,67 +100,94 @@ namespace XeroDataDump
 						if (trow.Cells != null)
 						{
 							// get name and value, cell[0] and [1]
-							ws.Cell(rowNum, 1).Value = trow.Cells[0].Value;
-							var acell = ws.Cell(rowNum, ACTUALCOLUMN);
-							acell.Value = trow.Cells[1].Value;
+							ws.Cells[rowNum, 1].Value = trow.Cells[0].Value;
+							var acell = ws.Cells[rowNum, ACTUALCOLUMN];
+							acell.Value = double.Parse(trow.Cells[1].Value);
 							// insert formulas
-							ws.Cell(rowNum, ACTUALCOLUMN + 1).FormulaA1 = "=" + ws.Cell(rowNum, BUDGETCOLUMN).Address + "-" + acell.Address;
-							ws.Cell(rowNum, ACTUALCOLUMN + 2).FormulaA1 = "=" + ws.Cell(rowNum, BUDGETCOLUMN).Address + "/" + acell.Address;
-							// TODO: format special cells
+							if (IncomeAccounts.Contains(ws.Cells[rowNum, 1].Value))
+							{
+								ws.Cells[rowNum, ACTUALCOLUMN + 1].Formula = "=" + acell.Address + "-" + ws.Cells[rowNum, BUDGETCOLUMN].Address;
+								ws.Cells[rowNum, ACTUALCOLUMN + 2].Formula = "=" + acell.Address + "/" + ws.Cells[rowNum, BUDGETCOLUMN].Address;
+							}
+							else
+							{
+								ws.Cells[rowNum, ACTUALCOLUMN + 1].Formula = "=" + ws.Cells[rowNum, BUDGETCOLUMN].Address + "-" + acell.Address;
+								ws.Cells[rowNum, ACTUALCOLUMN + 2].Formula = "=" + ws.Cells[rowNum, BUDGETCOLUMN].Address + "/" + acell.Address;
+							}
 						}
 						rowNum++;
 					}
 				}
 			}
+			
 		}
 
-		private static int searchText(IXLWorksheet ws, int rowi, int coli, string text)
+		private static bool IsEmptyCell(string data)
 		{
-			var row = ws.Row(rowi);
-			while (!row.Cell(coli).IsEmpty())
+			return string.IsNullOrWhiteSpace(data);
+		}
+
+		private static int searchText(ExcelWorksheet ws, int rowi, int coli, string text)
+		{
+			var row = rowi;
+			string data = ws.Cells[row, coli].GetValue<string>();
+			while (!IsEmptyCell(data))
 			{
-				if ((string)row.Cell(coli).Value == text)
+				if (data == text)
 				{
-					return row.RowNumber();
+					return row;
 				}
-				row = row.RowBelow();
+				row = row + 1;
+				data = ws.Cells[row, coli].GetValue<string>();
 			}
 			throw new ArgumentException("Text not found");
 		}
 		
-		private static void processOverallCostBudget(IXLWorksheet ws, XLWorkbook budget, int months)
+		private static double getDouble(ExcelRangeBase rb)
+		{
+			double val = rb.GetValue<double>();
+			return val;
+		}
+
+		private static void processOverallCostBudget(ExcelWorksheet ws, ExcelWorkbook budget, int months)
 		{
 			LogBox("Processing Overall Budget\n");
-			var sheet = budget.Worksheet("Overall");
+			var sheet = budget.Worksheets["Overall"];
 			var rownum = OVERALLROWSTART + 1;
-			var row = sheet.Row(Options.Default.CostBudgetRow);
-			row = row.RowBelow();
+			var row = Options.Default.CostBudgetRow;
 
-			while (!row.Cell(Options.Default.CostBudgetACCol).IsEmpty())
+			string data = sheet.Cells[row, Options.Default.CostBudgetACCol].GetValue<string>();
+
+			while (!IsEmptyCell(data))
 			{
-				var ac = (string)row.Cell(Options.Default.CostBudgetACCol).Value;
-
 				int irow = -1;
 				try
 				{
-					irow = searchText(ws, rownum, 1, ac);
+					irow = searchText(ws, rownum, 1, data);
 				} catch (ArgumentException)
 				{
 					// append
-					LogBox("Append: " + ac);
+					LogBox("Append: " + data);
 				}
 				if (irow > 0) {
 					LogBox("Summing: " + (Options.Default.CostBudgetYearCol + 1) + " - " + (Options.Default.CostBudgetYearCol + months));
-					ws.Cell(irow, BUDGETCOLUMN).Value = row.Cells(Options.Default.CostBudgetYearCol + 1, Options.Default.CostBudgetYearCol + months).Sum(cell => { double val = 0; cell.TryGetValue(out val); return val; });
+					ws.Cells[irow, BUDGETCOLUMN].Value = sheet.Cells[row, Options.Default.CostBudgetYearCol + 1, row, Options.Default.CostBudgetYearCol + months].Sum(cell => { return getDouble(cell); });
+					ws.Cells[irow, BUDGETCOLUMN - 1].Value = sheet.Cells[row, Options.Default.CostBudgetYearCol].Value;
 				}
-				row = row.RowBelow();
+				row = row + 1;
+				data = sheet.Cells[row, Options.Default.CostBudgetACCol].GetValue<string>();
 			}
+			//Format cells
+			ws.Cells[OVERALLROWSTART, BUDGETCOLUMN - 1, ws.Dimension.Rows, ACTUALCOLUMN + 1].Style.Numberformat.Format = "$#,##0.00";
+			ws.Cells[OVERALLROWSTART, ACTUALCOLUMN +2, ws.Dimension.Rows, ACTUALCOLUMN + 2].Style.Numberformat.Format = "0.00%";
 		}
 
 		private static void initializeState()
 		{
 			UpdateProjectMapping();
 			projectsTime = new Dictionary<Guid, List<Tuple<Guid, decimal>>>();
+			// unpack income accounts
+			IncomeAccounts = Options.Default.IncAccts.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries).ToList();
 		}
 
 		internal static void YTDDataDump(object sender, DoWorkEventArgs e)
@@ -171,18 +204,26 @@ namespace XeroDataDump
 			int year = (int)args[1];
 			int month = (int)args[2];
 
-			// initialize state
+			// initialize state and income accounts
 			initializeState();
 
 			int days = DateTime.DaysInMonth(year, month);
 
 			var start = new DateTime(year, month, 1);
 			var end = to;
-			var months = 6-month + to.Month;
+			// calc months
+			var months = 0;
+			while (start.AddMonths(months) < end) { months = months + 1; if (months > 10000) { throw new ArgumentException("Too many months. Are you sure YTD year is in the past?"); } }
+
 			LogBox(string.Format("Running YTD Data Dump for {0}-{1}\n", start.ToShortDateString(), end.ToShortDateString()));
-			var costBudgetwb = new XLWorkbook(Options.Default.CostBudgetFile);
-			var timeBudgetwb = new XLWorkbook(Options.Default.TimeBudgetFile);
-			var wb = new XLWorkbook();
+
+			var costBudgetwb = new ExcelPackage(new FileInfo(Options.Default.CostBudgetFile)).Workbook;
+			var timeBudgetwb = new ExcelPackage(new FileInfo(Options.Default.TimeBudgetFile)).Workbook;
+			// delete old
+			File.Delete(savefname);
+			var pkg = new ExcelPackage(new FileInfo(savefname));
+			
+			var wb = pkg.Workbook;
 
 			var overallws = setupWorkbook(wb, start, end);
 
@@ -198,14 +239,14 @@ namespace XeroDataDump
 			// autosize before save
 			foreach (var ws in wb.Worksheets)
 			{
-				foreach( var col in ws.Columns())
+				ws.Cells[ws.Dimension.Address].AutoFitColumns();
+				for (var ncol = 1; ncol <= ws.Dimension.Columns; ncol++)
 				{
-					col.AdjustToContents();
-					col.Width = col.Width + 3;
+					ws.Column(ncol).Width = ws.Column(ncol).Width + 5;
 				}
 			}
 
-			wb.SaveAs(savefname);
+			pkg.Save();
 
 			LogBox("Done Monthly dump.\n");
 
@@ -227,30 +268,37 @@ namespace XeroDataDump
 			}
 		}
 
-		private static void setupProjectSheet(IXLWorksheet ws, string title, DateTime from, DateTime to)
+		private static void setupProjectSheet(ExcelWorksheet ws, string title, DateTime from, DateTime to)
 		{
-			ws.Cell("A1").Value = "Profit and loss"; ws.Cell("C1").Value = "Begining"; ws.Cell("D1").Value = "Ending";
-			ws.Cell("A2").Value = title; ws.Cell("C2").Value = from.ToShortDateString(); ws.Cell("D2").Value = to.ToShortDateString();
+			ws.Cells["A1"].Value = "Profit and loss"; ws.Cells["C1"].Value = "Begining"; ws.Cells["D1"].Value = "Ending";
+			ws.Cells["A2"].Value = title; ws.Cells["C2"].Value = from.ToShortDateString(); ws.Cells["D2"].Value = to.ToShortDateString();
 
-			ws.Cell(PROJETROWSTART, BUDGETPROJCOLUMN).Value = "Budget"; ws.Cell(PROJETROWSTART, ACTUALPROJCOLUMN).Value = "Actual"; ws.Cell(PROJETROWSTART, ACTUALPROJCOLUMN+1).Value = "Var"; ws.Cell(PROJETROWSTART, ACTUALPROJCOLUMN+2).Value = "Var %";
-			ws.Cell("A4").Value = "Staff Hours"; ws.Cell("B4").Value = "Pos";
+			// staff Hours
+			ws.Cells[PROJ_HOURS_ROW, 1].Value = "Staff Hours"; ws.Cells[PROJ_HOURS_ROW, PROJ_BUDGET_COLUMN-1].Value = "Budget Full"; ws.Cells[PROJ_HOURS_ROW, PROJ_BUDGET_COLUMN].Value = "Budget YTD";
+			ws.Cells[PROJ_HOURS_ROW, PROJ_ACTUAL_COLUMN].Value = "Actual"; ws.Cells[PROJ_HOURS_ROW, PROJ_ACTUAL_COLUMN + 1].Value = "Var"; ws.Cells[PROJ_HOURS_ROW, PROJ_ACTUAL_COLUMN + 2].Value = "Var %";
+			// staff Cost
+			ws.Cells[PROJ_COST_ROW, 1].Value = "Staff Cost"; ws.Cells[PROJ_COST_ROW, PROJ_BUDGET_COLUMN - 1].Value = "Budget Full"; ws.Cells[PROJ_COST_ROW, PROJ_BUDGET_COLUMN].Value = "Budget YTD";
+			ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN].Value = "Actual"; ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN + 1].Value = "Var"; ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN + 2].Value = "Var %"; ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN + 3].Value = "Rate?";
+
+			ws.Cells[PROJETROWSTART, PROJ_BUDGET_COLUMN].Value = "Budget"; ws.Cells[PROJETROWSTART, PROJ_ACTUAL_COLUMN].Value = "Actual"; ws.Cells[PROJETROWSTART, PROJ_ACTUAL_COLUMN+1].Value = "Var"; ws.Cells[PROJETROWSTART, PROJ_ACTUAL_COLUMN+2].Value = "Var %";
+			ws.Cells["A4"].Value = "Staff Hours"; ws.Cells["B4"].Value = "Pos";
 		}
 
-		private static Dictionary<string, Tuple<string,double>> getBudgetEmployees(IXLWorksheet bws, DateTime from)
+		private static Dictionary<string, Tuple<string,double>> getBudgetEmployees(ExcelWorksheet bws, DateTime from)
 		{
 			var col = from.Month + BUDGETTIMECOLUMNSTART - 1;
-			var rownum = 1;
 			var emps = new Dictionary<string, Tuple<string, double>>();
 			if (bws == null) { return emps; }
-			
-			foreach (var row in bws.RangeUsed().Rows())
+
+			var i = bws.Dimension.Rows;
+			for (var rownum = 0; rownum < bws.Dimension.Rows; rownum++)
 			{
-				if (rownum == 1) { rownum++; continue; }
-				var emp = row.Cell(1).Value.ToString();
+				if (rownum == 1) { continue; } //increment rownum
+				var emp = bws.Cells[rownum, 1].Value.ToString();
 				if (!string.IsNullOrWhiteSpace(emp))
 				{
 					try {
-						emps[emp] = new Tuple<string, double>(row.Cell(2).Value.ToString(), row.Cell(col).GetDouble());
+						emps[emp] = new Tuple<string, double>(bws.Cells[rownum, 2].Value.ToString(), bws.Cells[rownum, col].GetValue<double>());
 					} catch (Exception) { }
 				}
 				rownum++;
@@ -260,7 +308,7 @@ namespace XeroDataDump
 
 		private static Dictionary<string, List<string>> getProjectsProfitLoss(DateTime start, DateTime end)
 		{
-			var plReport = c.Reports.ProfitAndLoss(start, from: start, to: end, standardLayout: false, trackingCategory: ProjectTCID);
+			var plReport = c.Reports.ProfitAndLoss(start, from: start, to: end, standardLayout: true, trackingCategory: ProjectTCID);
 			List<string> headers = null;
 			Dictionary<string, List<string>> preport = new Dictionary<string, List<string>>();
 
@@ -285,15 +333,15 @@ namespace XeroDataDump
 			return preport;
 		}
 
-		private static void processProjectsTime(XLWorkbook bwb, XLWorkbook wb, DateTime from, DateTime to)
+		private static void processProjectsTime(ExcelWorkbook bwb, ExcelWorkbook wb, DateTime from, DateTime to)
 		{
 			// dump employee hour data
 			foreach (var project in projectsTime)
 			{
 				var ws = wb.Worksheets.Add(projectMap[project.Key]);
-				IXLWorksheet bws = null;
+				ExcelWorksheet bws = null;
 				try {
-					bws = bwb.Worksheet(projectMap[project.Key]);
+					bws = bwb.Worksheets[projectMap[project.Key]];
 				} catch (Exception) {
 					
 				}
@@ -306,29 +354,31 @@ namespace XeroDataDump
 				{
 					var ename = getEmployeeName(emp.Item1);
 					employees.Add(ename);
-					ws.Cell(rownum, 1).Value = ename;
-					var bcell = ws.Cell(rownum, BUDGETPROJCOLUMN);
-					var acell = ws.Cell(rownum, ACTUALPROJCOLUMN);
+					ws.Cells[rownum, 1].Value = ename;
+					var bcell = ws.Cells[rownum, PROJ_BUDGET_COLUMN];
+					var acell = ws.Cells[rownum, PROJ_ACTUAL_COLUMN];
 					acell.Value = emp.Item2;
-					ws.Cell(rownum, ACTUALPROJCOLUMN + 1).FormulaA1 = "=" + bcell.Address + "-" + acell.Address;
-					ws.Cell(rownum, ACTUALPROJCOLUMN + 2).FormulaA1 = "=" + bcell.Address + "/" + acell.Address;
+					// TODO: ???
+					ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Formula = "=" + bcell.Address + "-" + acell.Address;
+					ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + bcell.Address + "/" + acell.Address;
+
 					if (budgetemps.ContainsKey(ename))
 					{
 						bcell.Value = budgetemps[ename].Item2;
-						ws.Cell(rownum, 2).Value = budgetemps[ename].Item1;
+						ws.Cells[rownum, 2].Value = budgetemps[ename].Item1;
 					}
 					rownum++;
 				}
 				// remaining items
 				foreach (var ik in budgetemps.Keys.Except(employees))
 				{
-					ws.Cell(rownum, 1).Value = ik;
-					ws.Cell(rownum, BUDGETPROJCOLUMN).Value = budgetemps[ik];
+					ws.Cells[rownum, 1].Value = ik;
+					ws.Cells[rownum, PROJ_BUDGET_COLUMN].Value = budgetemps[ik];
 				}
 			}
 		}
 
-		private static void processProjectActualCost(XLWorkbook wb, DateTime from, DateTime to)
+		private static void processProjectActualCost(ExcelWorkbook wb, DateTime from, DateTime to)
 		{
 			// dump remaining project data...
 			var projectReports = getProjectsProfitLoss(from, to);
@@ -336,12 +386,8 @@ namespace XeroDataDump
 			projectReports.Remove("");
 			foreach (var k in projectReports.Keys)
 			{
-				IXLWorksheet ws = null;
-				try
-				{
-					ws = wb.Worksheet(k);
-				}
-				catch (Exception)
+				ExcelWorksheet ws = wb.Worksheets[k];
+				if (ws == null)
 				{
 					if (k.Equals("Unassigned") || k.Equals("Total"))
 						continue;
@@ -351,17 +397,17 @@ namespace XeroDataDump
 						setupProjectSheet(ws, k, from, to);
 					}
 				}
-				var rownum = ws.LastRowUsed().RowNumber();
+				var rownum = ws.Dimension.Rows;
 				rownum = rownum + 2;
-				ws.Cell(rownum, BUDGETPROJCOLUMN).Value = "Budget"; ws.Cell(rownum, ACTUALPROJCOLUMN).Value = "Actual"; ws.Cell(rownum, ACTUALPROJCOLUMN + 1).Value = "Var $"; ws.Cell(rownum, ACTUALPROJCOLUMN + 2).Value = "Var %";
-				ws.Cell(rownum, 1).Value = "Others";
+				ws.Cells[rownum, PROJ_BUDGET_COLUMN].Value = "Budget"; ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = "Actual"; ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Value = "Var $"; ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Value = "Var %";
+				ws.Cells[rownum, 1].Value = "Others";
 				rownum++;
 
 				int i = 0;
 				foreach (var line in projectReports[k])
 				{
-					ws.Cell(rownum, 1).Value = categories[i];
-					ws.Cell(rownum, ACTUALPROJCOLUMN).Value = line;
+					ws.Cells[rownum, 1].Value = categories[i];
+					ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = double.Parse(line);
 					i++; rownum++;
 				}
 

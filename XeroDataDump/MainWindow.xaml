@@ -183,6 +183,11 @@
 						</Grid>
 					</GroupBox>
 				</Grid>
+				<Grid Grid.Row="6">
+					<GroupBox Header="Income accounts (One per line. Must match exactly.)">
+						<TextBox Name="IncAccts" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="IncAccts_LostFocus" AcceptsReturn="True" />
+					</GroupBox>
+				</Grid>
 			</Grid>
 		</TabItem>
 	</TabControl>

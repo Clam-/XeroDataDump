@@ -238,5 +238,17 @@ namespace XeroDataDump {
                 this["TimeBudgetYearCol"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string IncAccts {
+            get {
+                return ((string)(this["IncAccts"]));
+            }
+            set {
+                this["IncAccts"] = value;
+            }
+        }
     }
 }

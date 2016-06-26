@@ -392,6 +392,12 @@ namespace XeroDataDump
 				}
 			}
 		}
+
+		private void IncAccts_LostFocus(object sender, RoutedEventArgs e)
+		{
+			Options.Default.IncAccts = IncAccts.Text;
+			Options.Default.Save();
+		}
 	}
 }
 
