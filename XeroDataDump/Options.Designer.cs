@@ -250,5 +250,17 @@ namespace XeroDataDump {
                 this["IncAccts"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int CostBudgetRow_Proj {
+            get {
+                return ((int)(this["CostBudgetRow_Proj"]));
+            }
+            set {
+                this["CostBudgetRow_Proj"] = value;
+            }
+        }
     }
 }

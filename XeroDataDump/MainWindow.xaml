@@ -93,7 +93,7 @@
 					<Button Name="GetDataButton" Content="Dump Data to Excel file" Click="GetDataButton_Click"/>
 				</Grid>
 				<Grid Grid.Row="6">
-					<TextBox Name="Log" VerticalAlignment="Stretch" FontFamily="Courier New" FontSize="14.667"/>
+					<TextBox Name="Log" VerticalAlignment="Stretch" FontFamily="Courier New" FontSize="14.667" ScrollViewer.VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"/>
 				</Grid>
 			</Grid>
 		</TabItem>
@@ -144,7 +144,7 @@
 					<PasswordBox Name="ConsumerKey" Grid.Column="1" LostFocus="ConsKey_LostFocus"/>
 				</Grid>
 				<Grid Grid.Row="4">
-					<GroupBox Header="Cost budget file information">
+					<GroupBox Header="Cost budget file information (Numbers only)">
 						<Grid>
 							<Grid.ColumnDefinitions>
 								<ColumnDefinition Width="Auto"/>
@@ -153,13 +153,17 @@
 								<ColumnDefinition Width="1*"/>
 								<ColumnDefinition Width="Auto"/>
 								<ColumnDefinition Width="1*"/>
+								<ColumnDefinition Width="Auto"/>
+								<ColumnDefinition Width="1*"/>
 							</Grid.ColumnDefinitions>
-							<Label Grid.Column="0" Content="Header row:" />
+							<Label Grid.Column="0" Content="Date row:" />
 							<TextBox Name="CostBudgetRow" Grid.Column="1" LostFocus="CostBudgetRow_LostFocus"/>
-							<Label Grid.Column="2" Content="A/C name column:" />
-							<TextBox Name="CostBudgetACCol" Grid.Column="3" LostFocus="CostBudgetACCol_LostFocus"/>
-							<Label Grid.Column="4" Content="Year start column:" />
-							<TextBox Name="CostBudgetYearCol" Grid.Column="5" LostFocus="CostBudgetYearCol_LostFocus"/>
+							<Label Grid.Column="2" Content="Proj Date row:" />
+							<TextBox Name="CostBudgetRow_Proj" Grid.Column="3" LostFocus="CostBudgetRow_Proj_LostFocus"/>
+							<Label Grid.Column="4" Content="A/C name column:" />
+							<TextBox Name="CostBudgetACCol" Grid.Column="5" LostFocus="CostBudgetACCol_LostFocus"/>
+							<Label Grid.Column="6" Content="Year start column:" />
+							<TextBox Name="CostBudgetYearCol" Grid.Column="7" LostFocus="CostBudgetYearCol_LostFocus"/>
 						</Grid>
 					</GroupBox>
 				</Grid>

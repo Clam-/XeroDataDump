@@ -65,6 +65,7 @@ namespace XeroDataDump
 			TimeBudgetDateRow.Text = Options.Default.TimeBudgetDateRow.ToString();
 			TimeBudgetPosCol.Text = Options.Default.TimeBudgetPosCol.ToString();
 			TimeBudgetYearCol.Text = Options.Default.TimeBudgetYearCol.ToString();
+			CostBudgetRow_Proj.Text = Options.Default.CostBudgetRow_Proj.ToString();
 		}
 
 		private void disableUI()
@@ -383,7 +384,7 @@ namespace XeroDataDump
 				int num = 1;
 				if (int.TryParse(TimeBudgetYearCol.Text, out num))
 				{
-					Options.Default.TimeBudgetPosCol = num;
+					Options.Default.TimeBudgetYearCol = num;
 					Options.Default.Save();
 				}
 				else {
@@ -397,6 +398,23 @@ namespace XeroDataDump
 		{
 			Options.Default.IncAccts = IncAccts.Text;
 			Options.Default.Save();
+		}
+
+		private void CostBudgetRow_Proj_LostFocus(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(CostBudgetRow_Proj.Text))
+			{
+				int num = 1;
+				if (int.TryParse(CostBudgetRow_Proj.Text, out num))
+				{
+					Options.Default.CostBudgetRow_Proj = num;
+					Options.Default.Save();
+				}
+				else {
+					Log.Text = Log.Text + "Cost Budget Proj Row is not a number.\n";
+					return;
+				}
+			}
 		}
 	}
 }

@@ -33,8 +33,8 @@ namespace XeroDataDump
 		static int PROJ_BUDGET_COLUMN = 3;
 		static int PROJ_ACTUAL_COLUMN = 4;
 		static int PROJ_HOURS_ROW = 4;
-		static int PROJ_COST_ROW = 8;
-		static int PROJ_OTHERS_ROW = 12;
+		static int PROJ_COST_ROW = 6;
+		static int PROJ_OTHERS_ROW = 8;
 
 		static int POSITIONS = 8; // TODO: CHANGE THIS
 
@@ -133,7 +133,7 @@ namespace XeroDataDump
 			string data = ws.Cells[row, coli].GetValue<string>();
 			while (!IsEmptyCell(data))
 			{
-				if (data == text)
+				if (data.Equals(text, StringComparison.Ordinal))
 				{
 					return row;
 				}
@@ -152,34 +152,138 @@ namespace XeroDataDump
 		private static void processOverallCostBudget(ExcelWorksheet ws, ExcelWorkbook budget, int months)
 		{
 			LogBox("Processing Overall Budget\n");
-			var sheet = budget.Worksheets["Overall"];
+			var budgetSheet = budget.Worksheets["Overall"];
 			var rownum = OVERALLROWSTART + 1;
-			var row = Options.Default.CostBudgetRow;
+			var row = Options.Default.CostBudgetRow + 1;
 
-			string data = sheet.Cells[row, Options.Default.CostBudgetACCol].GetValue<string>();
+			string budgetAccName = budgetSheet.Cells[row, Options.Default.CostBudgetACCol].GetValue<string>();
 
-			while (!IsEmptyCell(data))
+			while (!IsEmptyCell(budgetAccName))
 			{
 				int irow = -1;
 				try
 				{
-					irow = searchText(ws, rownum, 1, data);
+					irow = searchText(ws, rownum, 1, budgetAccName);
 				} catch (ArgumentException)
 				{
-					// append
-					LogBox("Append: " + data);
+					// Missing budget
+					LogBox(string.Format("MISSING FROM ACTUAL ({0}).", budgetAccName));
 				}
 				if (irow > 0) {
-					LogBox("Summing: " + (Options.Default.CostBudgetYearCol + 1) + " - " + (Options.Default.CostBudgetYearCol + months));
-					ws.Cells[irow, BUDGETCOLUMN].Value = sheet.Cells[row, Options.Default.CostBudgetYearCol + 1, row, Options.Default.CostBudgetYearCol + months].Sum(cell => { return getDouble(cell); });
-					ws.Cells[irow, BUDGETCOLUMN - 1].Value = sheet.Cells[row, Options.Default.CostBudgetYearCol].Value;
+					//LogBox("Summing: " + (Options.Default.CostBudgetYearCol + 1) + " - " + (Options.Default.CostBudgetYearCol + months));
+					ws.Cells[irow, BUDGETCOLUMN].Value = budgetSheet.Cells[row, Options.Default.CostBudgetYearCol + 1, row, Options.Default.CostBudgetYearCol + months].Sum(cell => { return getDouble(cell); });
+					ws.Cells[irow, BUDGETCOLUMN - 1].Value = budgetSheet.Cells[row, Options.Default.CostBudgetYearCol].Value;
 				}
 				row = row + 1;
-				data = sheet.Cells[row, Options.Default.CostBudgetACCol].GetValue<string>();
+				budgetAccName = budgetSheet.Cells[row, Options.Default.CostBudgetACCol].GetValue<string>();
 			}
 			//Format cells
 			ws.Cells[OVERALLROWSTART, BUDGETCOLUMN - 1, ws.Dimension.Rows, ACTUALCOLUMN + 1].Style.Numberformat.Format = "$#,##0.00";
 			ws.Cells[OVERALLROWSTART, ACTUALCOLUMN +2, ws.Dimension.Rows, ACTUALCOLUMN + 2].Style.Numberformat.Format = "0.00%";
+		}
+
+		private static void processProjectsCostBudget(ExcelWorkbook wb, ExcelWorkbook budget, int months)
+		{
+			LogBox("Processing Project Budgets - Cost\n");
+
+			foreach (var ws in wb.Worksheets)
+			{
+				if (ws.Name.Equals("Overall PL", StringComparison.OrdinalIgnoreCase)) { continue; }
+				// get budget sheet
+				var budgetSheet = budget.Worksheets[ws.Name];
+				if (budgetSheet == null) { LogBox(string.Format("No Cost Budget found for ({0})", ws.Name)); continue; }
+
+				var wsrow = PROJ_OTHERS_ROW + 1;
+				var budgetrow = Options.Default.CostBudgetRow_Proj + 1;
+
+				// Check sheet
+				if (!budgetSheet.Cells[budgetrow-1, Options.Default.CostBudgetACCol].GetValue<string>().Equals("Account Name", StringComparison.OrdinalIgnoreCase))
+				{
+					LogBox(string.Format("Didn't find \"Account Name\" in expected cell in cost budget for ({0}))", ws.Name));
+					continue;
+				}
+
+				string budgetAccName = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetACCol].GetValue<string>();
+
+				while (!IsEmptyCell(budgetAccName))
+				{
+					int irow = -1;
+					try
+					{
+						irow = searchText(ws, wsrow, 1, budgetAccName);
+					}
+					catch (ArgumentException)
+					{
+						// Missing budget
+						LogBox(string.Format("MISSING FROM COST ACTUAL ({0}) from ({1}).", budgetAccName, ws.Name));
+					}
+					if (irow > 0)
+					{
+						//LogBox("Summing: " + (Options.Default.CostBudgetYearCol + 1) + " - " + (Options.Default.CostBudgetYearCol + months));
+						ws.Cells[irow, PROJ_BUDGET_COLUMN].Value = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetYearCol + 1, budgetrow, Options.Default.CostBudgetYearCol + months].Sum(cell => { return getDouble(cell); });
+						ws.Cells[irow, PROJ_BUDGET_COLUMN - 1].Value = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetYearCol].Value;
+					}
+					budgetrow = budgetrow + 1;
+					budgetAccName = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetACCol].GetValue<string>();
+				}
+				//Format cells
+				ws.Cells[PROJ_OTHERS_ROW, PROJ_BUDGET_COLUMN - 1, ws.Dimension.Rows, PROJ_ACTUAL_COLUMN + 1].Style.Numberformat.Format = "$#,##0.00";
+				ws.Cells[PROJ_OTHERS_ROW, PROJ_ACTUAL_COLUMN + 2, ws.Dimension.Rows, PROJ_ACTUAL_COLUMN + 2].Style.Numberformat.Format = "0.00%";
+
+			}
+		}
+
+		private static void processProjectsTimeBudget(ExcelWorkbook wb, ExcelWorkbook budget, int months)
+		{
+			LogBox("Processing Project Budgets - Time\n");
+
+			foreach (var ws in wb.Worksheets)
+			{
+				if (ws.Name.Equals("Overall PL", StringComparison.OrdinalIgnoreCase)) { continue; }
+				// get budget sheet
+				var budgetSheet = budget.Worksheets[ws.Name];
+				if (budgetSheet == null) { LogBox(string.Format("No Time Budget found for ({0})", ws.Name)); continue; }
+
+				var wsrow = PROJ_HOURS_ROW + 1;
+				var budgetrow = Options.Default.TimeBudgetDateRow + 2;
+
+				// Check sheet
+				var test = budgetSheet.Cells[budgetrow - 2, Options.Default.TimeBudgetPosCol].GetValue<string>();
+				if (test == null || !test.Trim().Equals("Expected days", StringComparison.OrdinalIgnoreCase))
+				{
+					if (test != null)
+						LogBox(string.Format("Didn't find \"Expected days\" in expected cell in time budget for ({0}) found ({1}))", ws.Name, test.Trim()));
+					else
+						LogBox(string.Format("Didn't find \"Expected days\" in expected cell in time budget for ({0})", ws.Name));
+					continue;
+				}
+
+				string position = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetPosCol].GetValue<string>();
+				while (!position.Contains("Total"))
+				{
+					var sumToDate = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetYearCol, budgetrow, Options.Default.TimeBudgetYearCol + months-1].Sum(cell => { return getDouble(cell); });
+					var sumYear = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetYearCol, budgetrow, Options.Default.TimeBudgetYearCol + 11].Sum(cell => { return getDouble(cell); });
+					//ws.Cells[budgetrow, PROJ_BUDGET_COLUMN].Value
+					if (sumToDate != 0 || sumYear != 0)
+					{
+						// insert position if values
+						ws.InsertRow(wsrow, 1);
+						ws.Cells[wsrow, PROJ_BUDGET_COLUMN - 1].Value = sumYear;
+						ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Value = sumToDate;
+						ws.Cells[wsrow, 1].Value = position;
+						wsrow = wsrow + 1;
+					} else
+					{
+						LogBox(string.Format("No Time Budget for position ({0}) for project ({1})", position, ws.Name));
+					}
+					budgetrow = budgetrow + 1;
+					position = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetPosCol].GetValue<string>();
+				}
+				//Format cells
+				ws.Cells[PROJ_HOURS_ROW, PROJ_BUDGET_COLUMN - 1, wsrow, PROJ_ACTUAL_COLUMN + 1].Style.Numberformat.Format = "#,##0.00";
+				ws.Cells[PROJ_HOURS_ROW, PROJ_ACTUAL_COLUMN + 2, wsrow, PROJ_ACTUAL_COLUMN + 2].Style.Numberformat.Format = "0.00%";
+
+			}
 		}
 
 		private static void initializeState()
@@ -227,12 +331,19 @@ namespace XeroDataDump
 
 			var overallws = setupWorkbook(wb, start, end);
 
+			// DO OVERALL ACTUALS, THEN BUDGET
 			addOverallData(overallws, start, end);
+			processOverallCostBudget(overallws, costBudgetwb, months);
+
+			// DO PROJECT ACTUAL COSTS THEN PROJET BUDGET
+			processProjectActualCost(wb, start, end);
+			processProjectsCostBudget(wb, costBudgetwb, months);
+
+			// Do project time budget
+			processProjectsTimeBudget(wb, timeBudgetwb, months);
+
 
 			//gatherTimesheetsProjects(start, end); // setup projectsTime
-
-			processOverallCostBudget(overallws, costBudgetwb, months);
-			processProjectActualCost(wb, start, end);
 
 			//processProjectsTime(costBudgetwb, wb, start, end);
 
@@ -245,7 +356,9 @@ namespace XeroDataDump
 					ws.Column(ncol).Width = ws.Column(ncol).Width + 5;
 				}
 			}
+			// move overheads to first index
 
+			wb.Worksheets.MoveAfter("Overheads", "Overall PL");
 			pkg.Save();
 
 			LogBox("Done Monthly dump.\n");
@@ -279,9 +392,6 @@ namespace XeroDataDump
 			// staff Cost
 			ws.Cells[PROJ_COST_ROW, 1].Value = "Staff Cost"; ws.Cells[PROJ_COST_ROW, PROJ_BUDGET_COLUMN - 1].Value = "Budget Full"; ws.Cells[PROJ_COST_ROW, PROJ_BUDGET_COLUMN].Value = "Budget YTD";
 			ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN].Value = "Actual"; ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN + 1].Value = "Var"; ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN + 2].Value = "Var %"; ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN + 3].Value = "Rate?";
-
-			ws.Cells[PROJETROWSTART, PROJ_BUDGET_COLUMN].Value = "Budget"; ws.Cells[PROJETROWSTART, PROJ_ACTUAL_COLUMN].Value = "Actual"; ws.Cells[PROJETROWSTART, PROJ_ACTUAL_COLUMN+1].Value = "Var"; ws.Cells[PROJETROWSTART, PROJ_ACTUAL_COLUMN+2].Value = "Var %";
-			ws.Cells["A4"].Value = "Staff Hours"; ws.Cells["B4"].Value = "Pos";
 		}
 
 		private static Dictionary<string, Tuple<string,double>> getBudgetEmployees(ExcelWorksheet bws, DateTime from)
@@ -408,6 +518,19 @@ namespace XeroDataDump
 				{
 					ws.Cells[rownum, 1].Value = categories[i];
 					ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = double.Parse(line);
+
+					// insert formulas
+					if (IncomeAccounts.Contains(ws.Cells[rownum, 1].Value))
+					{
+						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Formula = "=" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address + "-" + ws.Cells[rownum, PROJ_BUDGET_COLUMN].Address;
+						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address + "/" + ws.Cells[rownum, PROJ_BUDGET_COLUMN].Address;
+					}
+					else
+					{
+						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Formula = "=" + ws.Cells[rownum, PROJ_BUDGET_COLUMN].Address + "-" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address;
+						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[rownum, PROJ_BUDGET_COLUMN].Address + "/" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address;
+					}
+
 					i++; rownum++;
 				}
 
