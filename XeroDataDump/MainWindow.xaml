@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:XeroDataDump"
         mc:Ignorable="d"
 		x:Name="mainwin"
-        Title="XeroDataDump" Height="450" Width="560">
+        Title="XeroDataDump" Height="540" Width="640">
     <Window.Resources>
         <local:EnumToBoolConverter x:Key="EBConverter"/>
 		<Style x:Key="BaseStyle" TargetType="FrameworkElement">
@@ -27,6 +27,7 @@
 		<TabItem Header="Dump">
 			<Grid Margin="5">
 				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto"/>
 					<RowDefinition Height="Auto"/>
 					<RowDefinition Height="Auto"/>
 					<RowDefinition Height="Auto"/>
@@ -70,12 +71,25 @@
 						<ColumnDefinition Width="Auto"/>
 						<ColumnDefinition Width="1*"/>
 						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="Auto"/>
+					</Grid.ColumnDefinitions>
+					<Label Grid.Column="0" Content="Timesheet file:" />
+					<TextBox IsEnabled="False" Name="TimeSheetFname" Grid.Column="1" />
+					<Button Name="TimesheetBrowse" Grid.Column="2" Content="Browse" Click="TimesheetBrowse_Click"/>
+				</Grid>
+				<Grid Grid.Row="4">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="1*"/>
+						<ColumnDefinition Width="Auto"/>
 					</Grid.ColumnDefinitions>
 					<Label Grid.Column="0" Content="Cost Budget file:" />
 					<TextBox IsEnabled="False" Name="CostBudgetFname" Grid.Column="1" />
 					<Button Name="CostBudgetBrowse" Grid.Column="2" Content="Browse" Click="CostBudgetBrowse_Click"/>
 				</Grid>
-				<Grid Grid.Row="4">
+				<Grid Grid.Row="5">
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="Auto"/>
 						<ColumnDefinition Width="1*"/>
@@ -89,10 +103,10 @@
 					<Button Name="SaveBrowse" Grid.Column="2" Content="Browse" Click="SaveBrowse_Click"/>
 				</Grid>
 
-				<Grid Grid.Row="5">
+				<Grid Grid.Row="6">
 					<Button Name="GetDataButton" Content="Dump Data to Excel file" Click="GetDataButton_Click"/>
 				</Grid>
-				<Grid Grid.Row="6">
+				<Grid Grid.Row="7">
 					<TextBox Name="Log" VerticalAlignment="Stretch" FontFamily="Courier New" FontSize="14.667" ScrollViewer.VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"/>
 				</Grid>
 			</Grid>
@@ -192,6 +206,56 @@
 						<TextBox Name="IncAccts" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="IncAccts_LostFocus" AcceptsReturn="True" />
 					</GroupBox>
 				</Grid>
+			</Grid>
+		</TabItem>
+		<TabItem Header="Timesheets">
+			<Grid Margin="5">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="3*"/>
+					<RowDefinition Height="2*"/>
+					<RowDefinition Height="1*"/>
+				</Grid.RowDefinitions>
+				<GroupBox Grid.Row="0" Header="Positions (One per line. &quot;ID&lt;space&gt;COST&lt;space&gt;POS&quot; POS must match time budget.)">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="1*"/>
+						</Grid.RowDefinitions>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="Auto"/>
+							<ColumnDefinition Width="1*"/>
+						</Grid.ColumnDefinitions>
+						<Label Grid.Row="0" Grid.Column="0" Content="Example:"/>
+						<TextBox Grid.Row="0" Grid.Column="1" Text="7 CEO 50" IsEnabled="False"/>
+						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="Positions" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="Positions_LostFocus" AcceptsReturn="True" />
+					</Grid>
+				</GroupBox>
+				<GroupBox Grid.Row="1" Header="Project name translations &quot;Timesheet&lt;space&gt;XERO&quot;">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="1*"/>
+						</Grid.RowDefinitions>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="Auto"/>
+							<ColumnDefinition Width="1*"/>
+						</Grid.ColumnDefinitions>
+						<Label Grid.Row="0" Grid.Column="0" Content="Example:"/>
+						<TextBox Grid.Row="0" Grid.Column="1" Text="Queensland QLD" IsEnabled="False"/>
+						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="Translations" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="Translations_LostFocus" AcceptsReturn="True" />
+					</Grid>
+				</GroupBox>
+				<GroupBox Grid.Row="2" Header="Ignore sheets (one per line)">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="1*"/>
+						</Grid.RowDefinitions>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="1*"/>
+						</Grid.ColumnDefinitions>
+						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="IgnoreSheets" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="IgnoreSheets_LostFocus" AcceptsReturn="True" />
+					</Grid>
+				</GroupBox>
 			</Grid>
 		</TabItem>
 	</TabControl>

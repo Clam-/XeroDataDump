@@ -66,6 +66,10 @@ namespace XeroDataDump
 			TimeBudgetPosCol.Text = Options.Default.TimeBudgetPosCol.ToString();
 			TimeBudgetYearCol.Text = Options.Default.TimeBudgetYearCol.ToString();
 			CostBudgetRow_Proj.Text = Options.Default.CostBudgetRow_Proj.ToString();
+
+			Positions.Text = Options.Default.Positions.ToString();
+			Translations.Text = Options.Default.Translations.ToString();
+			IgnoreSheets.Text = Options.Default.IgnoreSheets.ToString();
 		}
 
 		private void disableUI()
@@ -415,6 +419,41 @@ namespace XeroDataDump
 					return;
 				}
 			}
+		}
+
+		private void Positions_LostFocus(object sender, RoutedEventArgs e)
+		{
+			Options.Default.Positions = Positions.Text;
+			Options.Default.Save();
+		}
+
+		private void TimesheetBrowse_Click(object sender, RoutedEventArgs e)
+		{
+			OpenFileDialog openDialog = new OpenFileDialog();
+			openDialog.Filter = "Excel Workbook|*.xlsx";
+			openDialog.Title = "Open Timesheet File...";
+			openDialog.ShowDialog();
+
+			// If the file name is not an empty string grab it
+			if (openDialog.FileName != "")
+			{
+				// get filename
+				TimeSheetFname.Text = openDialog.FileName;
+				Options.Default.TimesheetFile = openDialog.FileName;
+				Options.Default.Save();
+			}
+		}
+
+		private void Translations_LostFocus(object sender, RoutedEventArgs e)
+		{
+			Options.Default.Translations = Translations.Text;
+			Options.Default.Save();
+		}
+
+		private void IgnoreSheets_LostFocus(object sender, RoutedEventArgs e)
+		{
+			Options.Default.IgnoreSheets = IgnoreSheets.Text;
+			Options.Default.Save();
 		}
 	}
 }

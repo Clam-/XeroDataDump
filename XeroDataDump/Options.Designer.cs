@@ -262,5 +262,53 @@ namespace XeroDataDump {
                 this["CostBudgetRow_Proj"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string Positions {
+            get {
+                return ((string)(this["Positions"]));
+            }
+            set {
+                this["Positions"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string TimesheetFile {
+            get {
+                return ((string)(this["TimesheetFile"]));
+            }
+            set {
+                this["TimesheetFile"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string Translations {
+            get {
+                return ((string)(this["Translations"]));
+            }
+            set {
+                this["Translations"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string IgnoreSheets {
+            get {
+                return ((string)(this["IgnoreSheets"]));
+            }
+            set {
+                this["IgnoreSheets"] = value;
+            }
+        }
     }
 }
