@@ -27,9 +27,10 @@ namespace XeroDataDump
 		static Dictionary<int, Tuple<string, decimal>> posIDmap = new Dictionary<int, Tuple<string, decimal>>();
 		static Dictionary<string, decimal> posmap = new Dictionary<string, decimal>();
 		static Dictionary<string, Dictionary<string, decimal>> projPosHours = new Dictionary<string, Dictionary<string,decimal>>();
-		static Dictionary<string, string> projTranslations = new Dictionary<string, string>();
+		static Dictionary<string, string> projCollation = new Dictionary<string, string>();
 
 		static BackgroundWorker worker = null;
+		static StreamWriter logfile = null;
 
 		static int BUDGETCOLUMN = 3;
 		static int ACTUALCOLUMN = 4;
@@ -55,10 +56,20 @@ namespace XeroDataDump
 		{
 			if (worker != null)
 				worker.ReportProgress(0, msg+"\n");
+			if (logfile != null)
+			{
+				logfile.WriteLine(msg);
+				logfile.Flush();
+				logfile.BaseStream.Flush();
+			}
 		}
 
 		private static bool initXero()
 		{
+			// setup log file
+			if (logfile == null)
+				logfile = new StreamWriter(@"log.txt", true);
+
 			try
 			{
 				ap = new AustralianPayroll();
@@ -78,20 +89,24 @@ namespace XeroDataDump
 
 		private static void initPositions()
 		{
-			using (StringReader reader = new StringReader(Options.Default.Translations))
+			using (StringReader reader = new StringReader(Options.Default.Collation))
 			{
 				string line;
 				while ((line = reader.ReadLine()) != null)
 				{
-					// split line up in to ID, POS, COST
-					var ls = line.Split(' ');
-					if (ls.Count() != 2)
+					// split line up for collated projects
+					line = line.Trim();
+					var ls = line.Split(',');
+					if (ls.Count() < 2)
 					{
-						LogBox(string.Format("Invalid number of items in Translations ({0})", line));
+						LogBox(string.Format("Not enough items for collation ({0})", line));
 					}
 					else
 					{
-						projTranslations[ls[0]] = ls[1];
+						foreach (var item in ls)
+						{
+							projCollation[item.Trim()] = ls[ls.Count()-1].Trim();
+						}
 					}
 				}
 			}
@@ -293,15 +308,32 @@ namespace XeroDataDump
 		{
 			LogBox("Processing Timesheet\n");
 			var igsheets = Options.Default.IgnoreSheets.Replace("\r\n", "\n").Split('\n').ToList();
+			var posSheet = timesheetwb.Worksheets["Positions"];
+
 			foreach (var ws in timesheetwb.Worksheets)
 			{
 				if (igsheets.Contains(ws.Name)) { continue; }
 				// people sheets collate project hours
+				// get person name
+				var name = ws.Cells["F3"].GetValue<string>();
+				if (string.IsNullOrEmpty(name))
+				{
+					LogBox("ERROR: Missing name in timesheet for ({0}). Expect name in F3.");
+				}
+				// get position column
+				var poscell = from cell in posSheet.Cells["1:1"]
+							  where cell.GetValue<string>().Equals(name)
+							  select cell;
+				if (poscell == null)
+				{
+					LogBox(string.Format("Missing staff member in Timesheet Positions for ({0}) sheet. Perhaps this sheet needs to be ignored?", ws.Name));
+				}
 				var irow = 11;
 				for (int i = 0; i < months; i++)
 				{
 					// get position for month
-					var pos = ws.Cells[irow - 2, TIMESHEET_PROJ_COL - 1].GetValue<int>();
+					var pos = poscell.First().Offset(1, 0).GetValue<int>();
+
 					var position = posIDmap.ContainsKey(pos) ? posIDmap[pos].Item1 : "";
 					if (position.Equals(""))
 					{
@@ -315,7 +347,7 @@ namespace XeroDataDump
 						var project = ws.Cells[irow, TIMESHEET_PROJ_COL].GetValue<string>();
 						if (!string.IsNullOrEmpty(project))
 						{
-							if (projTranslations.ContainsKey(project)) { project = projTranslations[project]; }
+							if (projCollation.ContainsKey(project)) { project = projCollation[project]; }
 
 							if (!projPosHours.ContainsKey(project)) { projPosHours[project] = new Dictionary<string, decimal>(); }
 							if (!projPosHours[project].ContainsKey(position)) { projPosHours[project][position] = 0; }
@@ -580,8 +612,9 @@ namespace XeroDataDump
 
 			foreach (var row in plReport.Rows)
 			{
-				if (headers == null)
-					headers = row.Cells.Select(x => x.Value).ToList();
+				// project names
+				if (headers == null) { headers = row.Cells.Select(x => x.Value).ToList(); }
+
 				foreach (var r in row.Rows ?? Enumerable.Empty<ReportRow>())
 				{
 					int i = 0;
@@ -593,6 +626,27 @@ namespace XeroDataDump
 						}
 						preport[headers[i]].Add(c.Value);
 						i++;
+					}
+				}
+			}
+			//collate projects
+			foreach (var k in preport.Keys.ToList())
+			{
+				//LogBox(kv.Key + " : " + string.Join(",", kv.Value));
+				if (projCollation.ContainsKey(k)) {
+					var target = projCollation[k];
+					if (target != k)
+					{
+						if (preport.ContainsKey(target))
+						{
+							LogBox(string.Format("Collating {0} in to {1}", k, target));
+							preport[target] = preport[target].Zip(preport[k], (i1, i2) => (decimal.Parse(i1) + decimal.Parse(i2)).ToString()).ToList();
+							preport.Remove(k);
+						} else
+						{
+							LogBox(string.Format("Moving {0} in to {1}", k, target));
+							preport[target] = preport[k];
+						}
 					}
 				}
 			}
@@ -618,10 +672,11 @@ namespace XeroDataDump
 						setupProjectSheet(ws, k, from, to);
 					}
 				}
+				
 				var rownum = ws.Dimension.Rows;
 				rownum = rownum + 2;
 				ws.Cells[rownum, PROJ_BUDGET_COLUMN].Value = "Budget"; ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = "Actual"; ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Value = "Var $"; ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Value = "Var %";
-				ws.Cells[rownum, 1].Value = "Others";
+				ws.Cells[rownum, 1].Value = "Accounts - ";
 				rownum++;
 
 				int i = 0;

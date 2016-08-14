@@ -290,12 +290,12 @@ namespace XeroDataDump {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string Translations {
+        public string Collation {
             get {
-                return ((string)(this["Translations"]));
+                return ((string)(this["Collation"]));
             }
             set {
-                this["Translations"] = value;
+                this["Collation"] = value;
             }
         }
         

@@ -68,7 +68,7 @@
     <Setting Name="TimesheetFile" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
-    <Setting Name="Translations" Type="System.String" Scope="User">
+    <Setting Name="Collation" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
     <Setting Name="IgnoreSheets" Type="System.String" Scope="User">

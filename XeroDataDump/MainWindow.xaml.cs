@@ -68,7 +68,7 @@ namespace XeroDataDump
 			CostBudgetRow_Proj.Text = Options.Default.CostBudgetRow_Proj.ToString();
 
 			Positions.Text = Options.Default.Positions.ToString();
-			Translations.Text = Options.Default.Translations.ToString();
+			Collation.Text = Options.Default.Collation.ToString();
 			IgnoreSheets.Text = Options.Default.IgnoreSheets.ToString();
 		}
 
@@ -444,9 +444,9 @@ namespace XeroDataDump
 			}
 		}
 
-		private void Translations_LostFocus(object sender, RoutedEventArgs e)
+		private void Collation_LostFocus(object sender, RoutedEventArgs e)
 		{
-			Options.Default.Translations = Translations.Text;
+			Options.Default.Collation = Collation.Text;
 			Options.Default.Save();
 		}
 
