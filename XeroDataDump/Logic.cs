@@ -176,14 +176,16 @@ namespace XeroDataDump
 							acell.Value = decimal.Parse(trow.Cells[1].Value);
 							// insert formulas
 							if (IncomeAccounts.Contains(ws.Cells[rowNum, 1].Value))
-							{
+							{	// actual - budget
 								ws.Cells[rowNum, ACTUALCOLUMN + 1].Formula = "=" + acell.Address + "-" + ws.Cells[rowNum, BUDGETCOLUMN].Address;
-								ws.Cells[rowNum, ACTUALCOLUMN + 2].Formula = "=" + acell.Address + "/" + ws.Cells[rowNum, BUDGETCOLUMN].Address;
+								// variance / actual
+								ws.Cells[rowNum, ACTUALCOLUMN + 2].Formula = "=" + ws.Cells[rowNum, ACTUALCOLUMN + 1].Address + "/" + acell.Address;
 							}
 							else
-							{
+							{	// budget - actual
 								ws.Cells[rowNum, ACTUALCOLUMN + 1].Formula = "=" + ws.Cells[rowNum, BUDGETCOLUMN].Address + "-" + acell.Address;
-								ws.Cells[rowNum, ACTUALCOLUMN + 2].Formula = "=" + ws.Cells[rowNum, BUDGETCOLUMN].Address + "/" + acell.Address;
+								// variance / budget
+								ws.Cells[rowNum, ACTUALCOLUMN + 2].Formula = "=" + ws.Cells[rowNum, ACTUALCOLUMN + 1].Address + "/" + ws.Cells[rowNum, BUDGETCOLUMN].Address;
 							}
 						}
 						rowNum++;
@@ -464,7 +466,10 @@ namespace XeroDataDump
 					ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Formula = "=" + ws.Cells[row, PROJ_BUDGET_COLUMN].Address + "*" + rateCell.Address;
 					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Formula = "=" + ws.Cells[row, PROJ_ACTUAL_COLUMN].Address + "*" + rateCell.Address;
 					// var
-
+					// budget - actual
+					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 1].Formula = "=" + ws.Cells[row, PROJ_BUDGET_COLUMN].Address + "-" + ws.Cells[row, PROJ_ACTUAL_COLUMN].Address;
+					// variance / budget
+					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 1].Address + "/" + ws.Cells[row, PROJ_BUDGET_COLUMN].Address;
 					// increment things
 					wsrow = wsrow + 1;
 				}
@@ -687,14 +692,16 @@ namespace XeroDataDump
 
 					// insert formulas
 					if (IncomeAccounts.Contains(ws.Cells[rownum, 1].Value))
-					{
+					{	// actual - budget
 						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Formula = "=" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address + "-" + ws.Cells[rownum, PROJ_BUDGET_COLUMN].Address;
-						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address + "/" + ws.Cells[rownum, PROJ_BUDGET_COLUMN].Address;
+						// variance / actual
+						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Formula + "/" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address;
 					}
 					else
-					{
+					{   // budget - actual
 						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Formula = "=" + ws.Cells[rownum, PROJ_BUDGET_COLUMN].Address + "-" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address;
-						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[rownum, PROJ_BUDGET_COLUMN].Address + "/" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address;
+						// variance / budget
+						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Address + "/" + ws.Cells[rownum, PROJ_BUDGET_COLUMN].Address;
 					}
 
 					i++; rownum++;
