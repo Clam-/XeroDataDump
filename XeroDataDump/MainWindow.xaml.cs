@@ -67,9 +67,11 @@ namespace XeroDataDump
 			TimeBudgetYearCol.Text = Options.Default.TimeBudgetYearCol.ToString();
 			CostBudgetRow_Proj.Text = Options.Default.CostBudgetRow_Proj.ToString();
 
+			IncAccts.Text = Options.Default.IncAccts.ToString();
 			Positions.Text = Options.Default.Positions.ToString();
 			Collation.Text = Options.Default.Collation.ToString();
 			IgnoreSheets.Text = Options.Default.IgnoreSheets.ToString();
+			OverheadProjs.Text = Options.Default.OverheadProjs.ToString(); 
 		}
 
 		private void disableUI()
@@ -454,6 +456,29 @@ namespace XeroDataDump
 		{
 			Options.Default.IgnoreSheets = IgnoreSheets.Text;
 			Options.Default.Save();
+		}
+
+		private void OverheadProjs_LostFocus(object sender, RoutedEventArgs e)
+		{
+			Options.Default.OverheadProjs = OverheadProjs.Text;
+			Options.Default.Save();
+		}
+
+		private void HoursDay_LostFocus(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(HoursDay.Text))
+			{
+				int num = 8;
+				if (int.TryParse(CostBudgetRow_Proj.Text, out num))
+				{
+					Options.Default.HoursDay = num;
+					Options.Default.Save();
+				}
+				else {
+					Log.Text = Log.Text + "Hours per day is not a number.\n";
+					return;
+				}
+			}
 		}
 	}
 }

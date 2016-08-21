@@ -28,6 +28,7 @@ namespace XeroDataDump
 		static Dictionary<string, decimal> posmap = new Dictionary<string, decimal>();
 		static Dictionary<string, Dictionary<string, decimal>> projPosHours = new Dictionary<string, Dictionary<string,decimal>>();
 		static Dictionary<string, string> projCollation = new Dictionary<string, string>();
+		static List<string> overheadProjs = new List<string>();
 
 		static BackgroundWorker worker = null;
 		static StreamWriter logfile = null;
@@ -87,8 +88,9 @@ namespace XeroDataDump
 			return false;
 		}
 
-		private static void initPositions()
+		private static void initOthers()
 		{
+			// init collation groups
 			using (StringReader reader = new StringReader(Options.Default.Collation))
 			{
 				string line;
@@ -96,6 +98,8 @@ namespace XeroDataDump
 				{
 					// split line up for collated projects
 					line = line.Trim();
+					if (string.IsNullOrWhiteSpace(line)) { continue; }
+
 					var ls = line.Split(',');
 					if (ls.Count() < 2)
 					{
@@ -110,7 +114,7 @@ namespace XeroDataDump
 					}
 				}
 			}
-
+			// init position tables
 			using (StringReader reader = new StringReader(Options.Default.Positions))
 			{
 				string line;
@@ -138,6 +142,17 @@ namespace XeroDataDump
 							posmap[pos] = cost;
 						}
 					}
+				}
+			}
+			// init overhead projects
+			using (StringReader reader = new StringReader(Options.Default.OverheadProjs))
+			{
+				string line;
+				while ((line = reader.ReadLine()) != null)
+				{
+					// split line up for collated projects
+					line = line.Trim();
+					if(!overheadProjs.Contains(line)) { overheadProjs.Add(line); }
 				}
 			}
 		}
@@ -339,7 +354,7 @@ namespace XeroDataDump
 					var position = posIDmap.ContainsKey(pos) ? posIDmap[pos].Item1 : "";
 					if (position.Equals(""))
 					{
-						LogBox(string.Format("Missing position for month ({0}) of ({1})", i, ws.Name));
+						LogBox(string.Format("Missing position data for month ({0}) of ({1}). Check Positions tab in Timesheet, and make sure there is an entry in the program in the Timesheets tab for ({2}).", i, ws.Name, pos));
 						position = "N/A";
 					}
 					// check for projects
@@ -349,7 +364,10 @@ namespace XeroDataDump
 						var project = ws.Cells[irow, TIMESHEET_PROJ_COL].GetValue<string>();
 						if (!string.IsNullOrEmpty(project))
 						{
-							if (projCollation.ContainsKey(project)) { project = projCollation[project]; }
+							if (overheadProjs.Contains(project))
+								project = "Overheads";
+							else if (projCollation.ContainsKey(project))
+								project = projCollation[project];
 
 							if (!projPosHours.ContainsKey(project)) { projPosHours[project] = new Dictionary<string, decimal>(); }
 							if (!projPosHours[project].ContainsKey(position)) { projPosHours[project][position] = 0; }
@@ -367,6 +385,7 @@ namespace XeroDataDump
 		private static void processProjectsTime(ExcelWorkbook wb, ExcelWorkbook budget, int months)
 		{
 			LogBox("Processing Project - Time\n");
+			var hoursinday = Options.Default.HoursDay;
 
 			foreach (var ws in wb.Worksheets)
 			{
@@ -415,7 +434,8 @@ namespace XeroDataDump
 						{
 							if (projHours.ContainsKey(position))
 							{
-								ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Value = projHours[position];
+								// DIVIDE BY HOURS IN DAY
+								ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Value = projHours[position] / hoursinday;
 								posdone.Add(position);
 							}
 						}
@@ -435,7 +455,11 @@ namespace XeroDataDump
 						if (posdone.Contains(pos.Key)) { continue; }
 						ws.InsertRow(wsrow, 1);
 						ws.Cells[wsrow, 1].Value = pos.Key;
-						ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Value = pos.Value;
+						// DIVIDE BY HOURS IN DAY
+						ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Value = pos.Value / hoursinday;
+						// INSERT Variance formulas, budget - actual, variance / budget
+						ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 1].Formula = ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Address + "-" + ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Address;
+						ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 1].Address + "/" + ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Address;
 						wsrow = wsrow + 1;
 					}
 				}
@@ -467,9 +491,9 @@ namespace XeroDataDump
 					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Formula = "=" + ws.Cells[row, PROJ_ACTUAL_COLUMN].Address + "*" + rateCell.Address;
 					// var
 					// budget - actual
-					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 1].Formula = "=" + ws.Cells[row, PROJ_BUDGET_COLUMN].Address + "-" + ws.Cells[row, PROJ_ACTUAL_COLUMN].Address;
+					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 1].Formula = "=" + ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Address + "-" + ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Address;
 					// variance / budget
-					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 1].Address + "/" + ws.Cells[row, PROJ_BUDGET_COLUMN].Address;
+					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 1].Address + "/" + ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Address;
 					// increment things
 					wsrow = wsrow + 1;
 				}
@@ -492,7 +516,7 @@ namespace XeroDataDump
 			worker = sender as BackgroundWorker;
 
 			if (!initXero()) { return; }
-			initPositions();
+			initOthers();
 
 			object[] args = (object[])e.Argument;
 			//string orgName = (string)args[0];
@@ -695,7 +719,7 @@ namespace XeroDataDump
 					{	// actual - budget
 						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Formula = "=" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address + "-" + ws.Cells[rownum, PROJ_BUDGET_COLUMN].Address;
 						// variance / actual
-						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Formula + "/" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address;
+						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Address + "/" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address;
 					}
 					else
 					{   // budget - actual

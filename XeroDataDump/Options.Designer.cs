@@ -310,5 +310,29 @@ namespace XeroDataDump {
                 this["IgnoreSheets"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string OverheadProjs {
+            get {
+                return ((string)(this["OverheadProjs"]));
+            }
+            set {
+                this["OverheadProjs"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("8")]
+        public int HoursDay {
+            get {
+                return ((int)(this["HoursDay"]));
+            }
+            set {
+                this["HoursDay"] = value;
+            }
+        }
     }
 }

@@ -211,11 +211,20 @@
 		<TabItem Header="Timesheets">
 			<Grid Margin="5">
 				<Grid.RowDefinitions>
-					<RowDefinition Height="3*"/>
-					<RowDefinition Height="2*"/>
-					<RowDefinition Height="1*"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="9*"/>
+					<RowDefinition Height="10*"/>
+					<RowDefinition Height="9*"/>
 				</Grid.RowDefinitions>
-				<GroupBox Grid.Row="0" Header="Positions (One per line. &quot;ID&lt;space&gt;COST&lt;space&gt;POS&quot; POS must match time budget.)">
+				<Grid Grid.Row="0">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="1*"/>
+					</Grid.ColumnDefinitions>
+					<Label Grid.Column="0" Content="Hours per day:" />
+					<TextBox Name="HoursDay" Grid.Column="1" LostFocus="HoursDay_LostFocus"/>
+				</Grid>
+				<GroupBox Grid.Row="1" Header="Positions (One per line. &quot;ID&lt;space&gt;COST&lt;space&gt;POS&quot; POS must match time budget.)">
 					<Grid>
 						<Grid.RowDefinitions>
 							<RowDefinition Height="Auto"/>
@@ -230,7 +239,7 @@
 						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="Positions" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="Positions_LostFocus" AcceptsReturn="True" />
 					</Grid>
 				</GroupBox>
-				<GroupBox Grid.Row="1" Header="Project name collation - grouping Xero and timesheet projects (last item becomes display name)">
+				<GroupBox Grid.Row="2" Header="Project name collation - grouping Xero and timesheet projects (last item becomes display name)">
 					<Grid>
 						<Grid.RowDefinitions>
 							<RowDefinition Height="Auto"/>
@@ -245,7 +254,7 @@
 						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="Collation" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="Collation_LostFocus" AcceptsReturn="True" />
 					</Grid>
 				</GroupBox>
-				<GroupBox Grid.Row="2" Header="Ignore sheets (one per line)">
+				<GroupBox Grid.Row="3" Header="Ignore sheets (one per line)">
 					<Grid>
 						<Grid.RowDefinitions>
 							<RowDefinition Height="1*"/>
@@ -255,6 +264,34 @@
 						</Grid.ColumnDefinitions>
 						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="IgnoreSheets" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="IgnoreSheets_LostFocus" AcceptsReturn="True" />
 					</Grid>
+				</GroupBox>
+			</Grid>
+		</TabItem>
+		<TabItem Header="Overheads">
+			<Grid Margin="5">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="9*"/>
+					<RowDefinition Height="10*"/>
+					<RowDefinition Height="9*"/>
+				</Grid.RowDefinitions>
+				<GroupBox Grid.Row="0" Header="Timesheet projects for Overheads (one per line).">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="1*"/>
+						</Grid.RowDefinitions>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="Auto"/>
+							<ColumnDefinition Width="1*"/>
+						</Grid.ColumnDefinitions>
+						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="OverheadProjs" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="OverheadProjs_LostFocus" AcceptsReturn="True" />
+					</Grid>
+				</GroupBox>
+				<GroupBox Grid.Row="1" Header="Others">
+					
+				</GroupBox>
+				<GroupBox Grid.Row="2" Header="Something else">
+					
 				</GroupBox>
 			</Grid>
 		</TabItem>
