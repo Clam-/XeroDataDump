@@ -20,6 +20,7 @@ namespace XeroDataDump
 
 		static Dictionary<Guid, string> employees = new Dictionary<Guid, string>();
 		static List<string> IncomeAccounts = new List<string>();
+		static List<string> HideAccounts = new List<string>();
 
 		static AustralianPayroll ap = null;
 		static Core c = null;
@@ -29,6 +30,8 @@ namespace XeroDataDump
 		static Dictionary<string, Dictionary<string, decimal>> projPosHours = new Dictionary<string, Dictionary<string,decimal>>();
 		static Dictionary<string, string> projCollation = new Dictionary<string, string>();
 		static List<string> overheadProjs = new List<string>();
+
+		static Dictionary<string, string> mergeAccounts = new Dictionary<string, string>(); // alias -> rename
 
 		static BackgroundWorker worker = null;
 		static StreamWriter logfile = null;
@@ -44,6 +47,7 @@ namespace XeroDataDump
 		static int PROJ_OTHERS_ROW = 8;
 		static int TIMESHEET_HOURS_TOTAL = 38; // AL total column
 		static int TIMESHEET_PROJ_COL = 5;
+		static List<string> TIMESHEET_BAD_PROJS = new List<string>() { "PROJECT", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER", "JANUARY", "FEBUARY", "MARCH", "APRIL", "MAY"};
 
 		// static int BUDGETTIMEROWSTART = 3; Progmatically find
 		//static int BUDGETTIMECOLSEARCH = 2;
@@ -150,9 +154,43 @@ namespace XeroDataDump
 				string line;
 				while ((line = reader.ReadLine()) != null)
 				{
-					// split line up for collated projects
 					line = line.Trim();
 					if(!overheadProjs.Contains(line)) { overheadProjs.Add(line); }
+				}
+			}
+			// init hide accounts
+			using (StringReader reader = new StringReader(Options.Default.HideAccounts))
+			{
+				string line;
+				while ((line = reader.ReadLine()) != null)
+				{
+					line = line.Trim();
+					if (!HideAccounts.Contains(line)) { HideAccounts.Add(line); }
+				}
+			}
+
+			// init collation accounts
+			using (StringReader reader = new StringReader(Options.Default.MergeAccounts))
+			{
+				string line;
+				while ((line = reader.ReadLine()) != null)
+				{
+					// split line up for merged accounts
+					line = line.Trim();
+					if (string.IsNullOrWhiteSpace(line)) { continue; }
+
+					var ls = line.Split(',');
+					if (ls.Count() < 2)
+					{
+						LogBox(string.Format("Not enough items for account merge ({0})", line));
+					}
+					else
+					{
+						foreach (var item in ls)
+						{
+							mergeAccounts[item.Trim()] = ls[ls.Count() - 1].Trim();
+						}
+					}
 				}
 			}
 		}
@@ -177,6 +215,9 @@ namespace XeroDataDump
 
 			var rowNum = OVERALLROWSTART + 1;
 
+			var mergedValue = new Dictionary<int, Tuple<string, decimal>>(); // row -> name, value
+			var mergeAddr = new Dictionary<string, int>(); // mergedname -> row
+
 			foreach (var row in plReport.Rows)
 			{
 				if (row.Cells == null)
@@ -186,9 +227,39 @@ namespace XeroDataDump
 						if (trow.Cells != null)
 						{
 							// get name and value, cell[0] and [1]
-							ws.Cells[rowNum, 1].Value = trow.Cells[0].Value;
+							var acct = trow.Cells[0].Value;
+							if (HideAccounts.Contains(acct)) { continue; }
+							var value = decimal.Parse(trow.Cells[1].Value);
+							
+							// append merged accounts
+							if (mergeAccounts.ContainsKey(acct))
+							{
+								// get merged row
+								var mergedName = mergeAccounts[acct];
+								int mergedRow;
+								bool skip = false;
+								if (mergeAddr.ContainsKey(mergedName))
+								{
+									mergedRow = mergeAddr[mergedName];
+									skip = true;
+								} else
+								{
+									mergeAddr[mergedName] = mergedRow = rowNum;
+								}
+								// update running total
+								if (mergedValue.ContainsKey(mergedRow))
+								{
+									mergedValue[mergedRow] = new Tuple<string, decimal>(mergedValue[mergedRow].Item1, mergedValue[mergedRow].Item2 + value);
+								} else
+								{
+									mergedValue[mergedRow] = new Tuple<string, decimal>(mergedName, value);
+								}
+								if (skip) { continue; }
+							}
+
+							ws.Cells[rowNum, 1].Value = acct;
 							var acell = ws.Cells[rowNum, ACTUALCOLUMN];
-							acell.Value = decimal.Parse(trow.Cells[1].Value);
+							acell.Value = value;
 							// insert formulas
 							if (IncomeAccounts.Contains(ws.Cells[rowNum, 1].Value))
 							{	// actual - budget
@@ -206,6 +277,15 @@ namespace XeroDataDump
 						rowNum++;
 					}
 				}
+			}
+			// process merged accounts
+			foreach (var kvpair in mergedValue)
+			{
+				rowNum = kvpair.Key;
+				var name = kvpair.Value.Item1;
+				var value = kvpair.Value.Item2;
+				ws.Cells[rowNum, 1].Value = name;
+				ws.Cells[rowNum, ACTUALCOLUMN].Value = value;
 			}
 			
 		}
@@ -244,10 +324,18 @@ namespace XeroDataDump
 			var rownum = OVERALLROWSTART + 1;
 			var row = Options.Default.CostBudgetRow + 1;
 
+			var mergedValue = new Dictionary<int, Tuple<decimal,decimal>>(); // row -> budgetfull, budgetytd
+
 			string budgetAccName = budgetSheet.Cells[row, Options.Default.CostBudgetACCol].GetValue<string>();
 
 			while (!IsEmptyCell(budgetAccName))
 			{
+				var merge = false;
+				if (mergeAccounts.ContainsKey(budgetAccName))
+				{
+					budgetAccName = mergeAccounts[budgetAccName];
+					merge = true;
+				}
 				int irow = -1;
 				try
 				{
@@ -255,15 +343,35 @@ namespace XeroDataDump
 				} catch (ArgumentException)
 				{
 					// Missing budget
-					LogBox(string.Format("MISSING FROM ACTUAL ({0}).", budgetAccName));
+					LogBox(string.Format("MISSING FROM ACTUAL ({0}). Merging ({1})", budgetAccName, merge));
 				}
 				if (irow > 0) {
 					//LogBox("Summing: " + (Options.Default.CostBudgetYearCol + 1) + " - " + (Options.Default.CostBudgetYearCol + months));
-					ws.Cells[irow, BUDGETCOLUMN].Value = budgetSheet.Cells[row, Options.Default.CostBudgetYearCol + 1, row, Options.Default.CostBudgetYearCol + months].Sum(cell => { return getDecimal(cell); });
-					ws.Cells[irow, BUDGETCOLUMN - 1].Value = budgetSheet.Cells[row, Options.Default.CostBudgetYearCol].Value;
+					var budgetytd = budgetSheet.Cells[row, Options.Default.CostBudgetYearCol + 1, row, Options.Default.CostBudgetYearCol + months].Sum(cell => { return getDecimal(cell); });
+					var budgetfull = budgetSheet.Cells[row, Options.Default.CostBudgetYearCol].GetValue<decimal>();
+					if (merge)
+					{
+						if (mergedValue.ContainsKey(irow))  // sum values
+							mergedValue[irow] = new Tuple<decimal, decimal>(mergedValue[irow].Item1 + budgetfull, mergedValue[irow].Item2 + budgetytd);
+						else  // new values
+							mergedValue[irow] = new Tuple<decimal, decimal>(budgetfull, budgetytd);
+					}
+					else {
+						ws.Cells[irow, BUDGETCOLUMN].Value = budgetytd;
+						ws.Cells[irow, BUDGETCOLUMN - 1].Value = budgetfull;
+					}
 				}
 				row = row + 1;
 				budgetAccName = budgetSheet.Cells[row, Options.Default.CostBudgetACCol].GetValue<string>();
+			}
+			// process merged accounts
+			foreach (var kvpair in mergedValue)
+			{
+				rownum = kvpair.Key;
+				var budgetfull = kvpair.Value.Item1;
+				var budgetytd = kvpair.Value.Item2;
+				ws.Cells[rownum, BUDGETCOLUMN].Value = budgetytd;
+				ws.Cells[rownum, BUDGETCOLUMN - 1].Value = budgetfull;
 			}
 			//Format cells
 			ws.Cells[OVERALLROWSTART, BUDGETCOLUMN - 1, ws.Dimension.Rows, ACTUALCOLUMN + 1].Style.Numberformat.Format = "$#,##0.00";
@@ -291,10 +399,19 @@ namespace XeroDataDump
 					continue;
 				}
 
+				var mergedValue = new Dictionary<int, Tuple<decimal, decimal>>(); // row -> budgetfull, budgetytd
+
 				string budgetAccName = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetACCol].GetValue<string>();
 
 				while (!IsEmptyCell(budgetAccName))
 				{
+					var merge = false;
+					if (mergeAccounts.ContainsKey(budgetAccName))
+					{
+						budgetAccName = mergeAccounts[budgetAccName];
+						merge = true;
+					}
+
 					int irow = -1;
 					try
 					{
@@ -307,12 +424,33 @@ namespace XeroDataDump
 					}
 					if (irow > 0)
 					{
-						//LogBox("Summing: " + (Options.Default.CostBudgetYearCol + 1) + " - " + (Options.Default.CostBudgetYearCol + months));
-						ws.Cells[irow, PROJ_BUDGET_COLUMN].Value = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetYearCol + 1, budgetrow, Options.Default.CostBudgetYearCol + months].Sum(cell => { return getDecimal(cell); });
-						ws.Cells[irow, PROJ_BUDGET_COLUMN - 1].Value = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetYearCol].Value;
+						var budgetfull = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetYearCol].GetValue<decimal>();
+						var budgetytd = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetYearCol + 1, budgetrow, Options.Default.CostBudgetYearCol + months].Sum(cell => { return getDecimal(cell); });
+
+						if (merge)
+						{
+							if (mergedValue.ContainsKey(irow))  // sum values
+								mergedValue[irow] = new Tuple<decimal, decimal>(mergedValue[irow].Item1 + budgetfull, mergedValue[irow].Item2 + budgetytd);
+							else  // new values
+								mergedValue[irow] = new Tuple<decimal, decimal>(budgetfull, budgetytd);
+						}
+						else {
+							ws.Cells[irow, PROJ_BUDGET_COLUMN].Value = budgetytd;
+							ws.Cells[irow, PROJ_BUDGET_COLUMN - 1].Value = budgetfull;
+						}
 					}
 					budgetrow = budgetrow + 1;
 					budgetAccName = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetACCol].GetValue<string>();
+				}
+
+				// process merged accounts
+				foreach (var kvpair in mergedValue)
+				{
+					wsrow = kvpair.Key;
+					var budgetfull = kvpair.Value.Item1;
+					var budgetytd = kvpair.Value.Item2;
+					ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Value = budgetytd;
+					ws.Cells[wsrow, PROJ_BUDGET_COLUMN - 1].Value = budgetfull;
 				}
 				//Format cells
 				ws.Cells[PROJ_OTHERS_ROW, PROJ_BUDGET_COLUMN - 1, ws.Dimension.Rows, PROJ_ACTUAL_COLUMN + 1].Style.Numberformat.Format = "$#,##0.00";
@@ -354,16 +492,22 @@ namespace XeroDataDump
 					var position = posIDmap.ContainsKey(pos) ? posIDmap[pos].Item1 : "";
 					if (position.Equals(""))
 					{
-						LogBox(string.Format("Missing position data for month ({0}) of ({1}). Check Positions tab in Timesheet, and make sure there is an entry in the program in the Timesheets tab for ({2}).", i, ws.Name, pos));
+						LogBox(string.Format("Missing position data for month ({0}) of ({1}). Check Positions sheet in Timesheet, and make sure there is an entry in the program in the Timesheets tab for ({2}).", i, ws.Name, pos));
 						position = "N/A";
 					}
 					// check for projects
-					for (int x = 0; x < 12; x++)
+					for (int x = 0; x < 15; x++)
 					{
-						irow = irow + x;
+						//LogBox("I: " + i + " X: " + x + " ROW: " + irow);
 						var project = ws.Cells[irow, TIMESHEET_PROJ_COL].GetValue<string>();
 						if (!string.IsNullOrEmpty(project))
 						{
+							// sanity check
+							if (TIMESHEET_BAD_PROJS.Contains(project))
+							{
+								LogBox("ERROR: Cannot sync to Timesheet rows. \"Rows between months\" is likely set incorrectly.");
+								return;
+							}
 							if (overheadProjs.Contains(project))
 								project = "Overheads";
 							else if (projCollation.ContainsKey(project))
@@ -373,10 +517,11 @@ namespace XeroDataDump
 							if (!projPosHours[project].ContainsKey(position)) { projPosHours[project][position] = 0; }
 							projPosHours[project][position] = projPosHours[project][position] + 
 								ws.Cells[irow, TIMESHEET_HOURS_TOTAL].GetValue<decimal>();
-						} else { break; }
+						}
+						irow++;
 					}
 					// jump to next
-					irow = irow + 38;
+					irow = irow + Options.Default.MonthRows;
 				}
 			}
 
@@ -384,68 +529,108 @@ namespace XeroDataDump
 
 		private static void processProjectsTime(ExcelWorkbook wb, ExcelWorkbook budget, int months)
 		{
-			LogBox("Processing Project - Time\n");
+			LogBox("Processing Project - Time Actuals and Budget\n");
 			var hoursinday = Options.Default.HoursDay;
 
-			foreach (var ws in wb.Worksheets)
+			var doneProjs = new List<string>();
+
+			var worksheets = wb.Worksheets.ToList();
+			//place Overheads last
+			worksheets.Remove(wb.Worksheets["Overheads"]);
+			worksheets.Add(wb.Worksheets["Overheads"]);
+
+			foreach (var ws in worksheets)
 			{
 				if (ws.Name.Equals("Overall PL", StringComparison.OrdinalIgnoreCase)) { continue; }
+				//prepare for overheads:
+				if (ws.Name.Equals("Overheads"))
+				{
+					// Warn for projects not processed:
+					foreach (var proj in projPosHours.Keys)
+					{
+						if (proj.Equals("Overheads", StringComparison.OrdinalIgnoreCase)) { continue; }
+						if (!doneProjs.Contains(proj))
+						{
+							LogBox(string.Format("WARNING: Project time from timesheet ({0}) not allocated as Overheads but also not a project in Xero/budget OR Collated. Will be assigned to Overheads.", proj));
+							var overheads = projPosHours["Overheads"];
+							foreach (var x in projPosHours[proj])
+							{
+								if (overheads.ContainsKey(x.Key))  // sum
+								{
+									overheads[x.Key] = overheads[x.Key] + x.Value;
+								} else
+								{
+									overheads[x.Key] = x.Value;
+								}
+							}
+						}
+					}
+				}
+				
 				// get budget sheet
 				var budgetSheet = budget.Worksheets[ws.Name];
-				if (budgetSheet == null) { LogBox(string.Format("No Time Budget found for ({0})", ws.Name)); continue; }
-
-				var wsrow = PROJ_HOURS_ROW + 1;
-				var budgetrow = Options.Default.TimeBudgetDateRow + 2;
-
-				// Check sheet
-				var test = budgetSheet.Cells[budgetrow - 2, Options.Default.TimeBudgetPosCol].GetValue<string>();
-				if (test == null || !test.Trim().Equals("Expected days", StringComparison.OrdinalIgnoreCase))
-				{
-					if (test != null)
-						LogBox(string.Format("Didn't find \"Expected days\" in expected cell in time budget for ({0}) found ({1}))", ws.Name, test.Trim()));
-					else
-						LogBox(string.Format("Didn't find \"Expected days\" in expected cell in time budget for ({0})", ws.Name));
-					continue;
-				}
-
-				string position = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetPosCol].GetValue<string>();
-				var posdone = new List<string>();
 
 				Dictionary<string, decimal> projHours = null;
 				if (projPosHours.ContainsKey(ws.Name))
 				{
 					projHours = projPosHours[ws.Name];
+					doneProjs.Add(ws.Name);
 				}
+				var posdone = new List<string>();
+				var wsrow = PROJ_HOURS_ROW + 1;
 
-				while (!position.Contains("Total"))
+				var budgetskip = false;
+				if (budgetSheet == null) { LogBox(string.Format("No Time Budget found for ({0})", ws.Name)); budgetskip = true; }
+				if (!budgetskip)
 				{
-					var sumToDate = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetYearCol, budgetrow, Options.Default.TimeBudgetYearCol + months-1].Sum(cell => { return getDecimal(cell); });
-					var sumYear = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetYearCol, budgetrow, Options.Default.TimeBudgetYearCol + 11].Sum(cell => { return getDecimal(cell); });
-					//ws.Cells[budgetrow, PROJ_BUDGET_COLUMN].Value
-					if (sumToDate != 0 || sumYear != 0)
+					var budgetrow = Options.Default.TimeBudgetDateRow + 2;
+
+					// Check sheet
+					var test = budgetSheet.Cells[budgetrow - 2, Options.Default.TimeBudgetPosCol].GetValue<string>();
+					if (test == null || !test.Trim().Equals("Expected days", StringComparison.OrdinalIgnoreCase))
 					{
-						// insert position if values
-						ws.InsertRow(wsrow, 1);
-						ws.Cells[wsrow, PROJ_BUDGET_COLUMN - 1].Value = sumYear;
-						ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Value = sumToDate;
-						ws.Cells[wsrow, 1].Value = position;
-						// Insert Actual time from timesheet mapping
-						if (projHours != null)
-						{
-							if (projHours.ContainsKey(position))
-							{
-								// DIVIDE BY HOURS IN DAY
-								ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Value = projHours[position] / hoursinday;
-								posdone.Add(position);
-							}
-						}
-						wsrow = wsrow + 1;
-					} else
-					{
-						LogBox(string.Format("No Time Budget for position ({0}) for project ({1})", position, ws.Name));
+						if (test != null)
+							LogBox(string.Format("Didn't find \"Expected days\" in expected cell in time budget for ({0}) found ({1}))", ws.Name, test.Trim()));
+						else
+							LogBox(string.Format("Didn't find \"Expected days\" in expected cell in time budget for ({0})", ws.Name));
+						budgetskip = true;
 					}
-					budgetrow = budgetrow + 1;
-					position = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetPosCol].GetValue<string>();
+					if (!budgetskip)
+					{
+						string position = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetPosCol].GetValue<string>();
+
+						while (!position.Contains("Total"))
+						{
+							var sumToDate = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetYearCol, budgetrow, Options.Default.TimeBudgetYearCol + months - 1].Sum(cell => { return getDecimal(cell); });
+							var sumYear = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetYearCol, budgetrow, Options.Default.TimeBudgetYearCol + 11].Sum(cell => { return getDecimal(cell); });
+							//ws.Cells[budgetrow, PROJ_BUDGET_COLUMN].Value
+							if (sumToDate != 0 || sumYear != 0)
+							{
+								// insert position if values
+								ws.InsertRow(wsrow, 1);
+								ws.Cells[wsrow, PROJ_BUDGET_COLUMN - 1].Value = sumYear;
+								ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Value = sumToDate;
+								ws.Cells[wsrow, 1].Value = position;
+								// Insert Actual time from timesheet mapping
+								if (projHours != null)
+								{
+									if (projHours.ContainsKey(position))
+									{
+										// DIVIDE BY HOURS IN DAY
+										ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Value = projHours[position] / hoursinday;
+										posdone.Add(position);
+									}
+								}
+								wsrow = wsrow + 1;
+							}
+							else
+							{
+								LogBox(string.Format("No Time Budget for position ({0}) for project ({1})", position, ws.Name));
+							}
+							budgetrow = budgetrow + 1;
+							position = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetPosCol].GetValue<string>();
+						}
+					}
 				}
 				// add missing actual positions from budget:
 				if (projHours != null)
@@ -475,7 +660,7 @@ namespace XeroDataDump
 				{
 					ws.InsertRow(wsrow, 1);
 					// insert cost and then formulas
-					position = ws.Cells[row, 1].GetValue<string>();
+					var position = ws.Cells[row, 1].GetValue<string>();
 					var rateCell = ws.Cells[wsrow, ACTUALCOLUMN + 3];
 					if (posmap.ContainsKey(position))
 					{
@@ -670,12 +855,12 @@ namespace XeroDataDump
 						{
 							LogBox(string.Format("Collating {0} in to {1}", k, target));
 							preport[target] = preport[target].Zip(preport[k], (i1, i2) => (decimal.Parse(i1) + decimal.Parse(i2)).ToString()).ToList();
-							preport.Remove(k);
 						} else
 						{
 							LogBox(string.Format("Moving {0} in to {1}", k, target));
 							preport[target] = preport[k];
 						}
+						preport.Remove(k);
 					}
 				}
 			}
@@ -705,14 +890,50 @@ namespace XeroDataDump
 				var rownum = ws.Dimension.Rows;
 				rownum = rownum + 2;
 				ws.Cells[rownum, PROJ_BUDGET_COLUMN].Value = "Budget"; ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = "Actual"; ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Value = "Var $"; ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Value = "Var %";
-				ws.Cells[rownum, 1].Value = "Accounts - ";
+				ws.Cells[rownum, 1].Value = "Accounts";
 				rownum++;
+
+				var mergedValue = new Dictionary<int, Tuple<string, decimal>>(); // row -> name, value
+				var mergeAddr = new Dictionary<string, int>(); // mergedname -> row
+
 
 				int i = 0;
 				foreach (var line in projectReports[k])
 				{
-					ws.Cells[rownum, 1].Value = categories[i];
-					ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = decimal.Parse(line);
+					// get name and value
+					var acct = categories[i];
+					if (HideAccounts.Contains(acct)) { i++; continue; }
+					var value = decimal.Parse(line);
+
+					// append merged accounts
+					if (mergeAccounts.ContainsKey(acct))
+					{
+						// get merged row
+						var mergedName = mergeAccounts[acct];
+						int mergedRow;
+						bool skip = false;
+						if (mergeAddr.ContainsKey(mergedName))
+						{
+							mergedRow = mergeAddr[mergedName];
+							skip = true;
+						}
+						else
+						{
+							mergeAddr[mergedName] = mergedRow = rownum;
+						}
+						// update running total
+						if (mergedValue.ContainsKey(mergedRow))
+						{
+							mergedValue[mergedRow] = new Tuple<string, decimal>(mergedValue[mergedRow].Item1, mergedValue[mergedRow].Item2 + value);
+						}
+						else
+						{
+							mergedValue[mergedRow] = new Tuple<string, decimal>(mergedName, value);
+						}
+						if (skip) { i++; continue; }
+					}
+					ws.Cells[rownum, 1].Value = acct;
+					ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = value;
 
 					// insert formulas
 					if (IncomeAccounts.Contains(ws.Cells[rownum, 1].Value))
@@ -731,6 +952,15 @@ namespace XeroDataDump
 					i++; rownum++;
 				}
 
+				// process merged accounts
+				foreach (var kvpair in mergedValue)
+				{
+					rownum = kvpair.Key;
+					var name = kvpair.Value.Item1;
+					var value = kvpair.Value.Item2;
+					ws.Cells[rownum, 1].Value = name;
+					ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = value;
+				}
 			}
 		}
 

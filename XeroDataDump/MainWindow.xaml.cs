@@ -71,7 +71,11 @@ namespace XeroDataDump
 			Positions.Text = Options.Default.Positions.ToString();
 			Collation.Text = Options.Default.Collation.ToString();
 			IgnoreSheets.Text = Options.Default.IgnoreSheets.ToString();
-			OverheadProjs.Text = Options.Default.OverheadProjs.ToString(); 
+			OverheadProjs.Text = Options.Default.OverheadProjs.ToString();
+			MergeAccounts.Text = Options.Default.MergeAccounts.ToString();
+			HideAccounts.Text = Options.Default.HideAccounts.ToString();
+			HoursDay.Text = Options.Default.HoursDay.ToString();
+			MonthRows.Text = Options.Default.MonthRows.ToString();
 		}
 
 		private void disableUI()
@@ -469,13 +473,42 @@ namespace XeroDataDump
 			if (!string.IsNullOrWhiteSpace(HoursDay.Text))
 			{
 				int num = 8;
-				if (int.TryParse(CostBudgetRow_Proj.Text, out num))
+				if (int.TryParse(HoursDay.Text, out num))
 				{
 					Options.Default.HoursDay = num;
 					Options.Default.Save();
 				}
 				else {
 					Log.Text = Log.Text + "Hours per day is not a number.\n";
+					return;
+				}
+			}
+		}
+
+		private void MergeAccounts_LostFocus(object sender, RoutedEventArgs e)
+		{
+			Options.Default.MergeAccounts = MergeAccounts.Text;
+			Options.Default.Save();
+		}
+
+		private void HideAccounts_LostFocus(object sender, RoutedEventArgs e)
+		{
+			Options.Default.HideAccounts = HideAccounts.Text;
+			Options.Default.Save();
+		}
+
+		private void MonthRows_LostFocus(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(MonthRows.Text))
+			{
+				int num = 0;
+				if (int.TryParse(MonthRows.Text, out num))
+				{
+					Options.Default.MonthRows = num;
+					Options.Default.Save();
+				}
+				else {
+					Log.Text = Log.Text + "Rows between Months is not a number.\n";
 					return;
 				}
 			}

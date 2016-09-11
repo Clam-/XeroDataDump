@@ -267,7 +267,61 @@
 				</GroupBox>
 			</Grid>
 		</TabItem>
-		<TabItem Header="Overheads">
+		<TabItem Header="More Timesheets">
+			<Grid Margin="5">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="9*"/>
+					<RowDefinition Height="10*"/>
+					<RowDefinition Height="9*"/>
+				</Grid.RowDefinitions>
+				<Grid Grid.Row="0">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="1*"/>
+					</Grid.ColumnDefinitions>
+					<Label Grid.Column="0" Content="Rows between months:" />
+					<TextBox Name="MonthRows" Grid.Column="1" LostFocus="MonthRows_LostFocus"/>
+				</Grid>
+				<GroupBox Grid.Row="1" Header="Data about timesheet cell postitions">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="1*"/>
+						</Grid.RowDefinitions>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="Auto"/>
+							<ColumnDefinition Width="1*"/>
+						</Grid.ColumnDefinitions>
+
+					</Grid>
+				</GroupBox>
+				<GroupBox Grid.Row="2" Header="??">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="1*"/>
+						</Grid.RowDefinitions>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="Auto"/>
+							<ColumnDefinition Width="1*"/>
+						</Grid.ColumnDefinitions>
+
+					</Grid>
+				</GroupBox>
+				<GroupBox Grid.Row="3" Header="?">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="1*"/>
+						</Grid.RowDefinitions>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="1*"/>
+						</Grid.ColumnDefinitions>
+					</Grid>
+				</GroupBox>
+			</Grid>
+		</TabItem>
+		<TabItem Header="Misc.">
 			<Grid Margin="5">
 				<Grid.RowDefinitions>
 					<RowDefinition Height="9*"/>
@@ -287,11 +341,23 @@
 						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="OverheadProjs" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="OverheadProjs_LostFocus" AcceptsReturn="True" />
 					</Grid>
 				</GroupBox>
-				<GroupBox Grid.Row="1" Header="Others">
-					
+				<GroupBox Grid.Row="1" Header="Accounts to Merge (Comma separated, last item becomes display name)">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="1*"/>
+						</Grid.RowDefinitions>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="Auto"/>
+							<ColumnDefinition Width="1*"/>
+						</Grid.ColumnDefinitions>
+						<Label Grid.Row="0" Grid.Column="0" Content="Example:"/>
+						<TextBox Grid.Row="0" Grid.Column="1" Text="Travel - flights, Travel - accomodation, Travel other, Travel" IsEnabled="False"/>
+						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="MergeAccounts" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="MergeAccounts_LostFocus" AcceptsReturn="True" />
+					</Grid>
 				</GroupBox>
-				<GroupBox Grid.Row="2" Header="Something else">
-					
+				<GroupBox Grid.Row="2" Header="Remove Accounts (One per line)">
+					<TextBox Name="HideAccounts" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="HideAccounts_LostFocus" AcceptsReturn="True" />
 				</GroupBox>
 			</Grid>
 		</TabItem>

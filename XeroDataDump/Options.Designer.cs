@@ -334,5 +334,41 @@ namespace XeroDataDump {
                 this["HoursDay"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string MergeAccounts {
+            get {
+                return ((string)(this["MergeAccounts"]));
+            }
+            set {
+                this["MergeAccounts"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string HideAccounts {
+            get {
+                return ((string)(this["HideAccounts"]));
+            }
+            set {
+                this["HideAccounts"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int MonthRows {
+            get {
+                return ((int)(this["MonthRows"]));
+            }
+            set {
+                this["MonthRows"] = value;
+            }
+        }
     }
 }
