@@ -51,21 +51,18 @@ namespace XeroDataDump
 		{
 			CostBudgetFname.Text = Options.Default.CostBudgetFile;
 			TimeBudgetFname.Text = Options.Default.TimeBudgetFile;
+			TimeSheetFname.Text = Options.Default.TimesheetFile;
 			OrgName.Text = Options.Default.OrganisationName ?? OrgName.Text;
 			Month.SelectedIndex = Options.Default.Month;
 			Year.Text = Options.Default.Year.ToString();
-			SaveName.Text = Options.Default.OutputDir;
+			SaveName.Text = Options.Default.OutputFile;
 			CertFname.Text = Options.Default.CertFile;
 			ConsumerKey.Password = Options.Default.ConsumerKey;
 			CertPass.Password = Options.Default.CertPassword;
 
-			CostBudgetRow.Text = Options.Default.CostBudgetRow.ToString();
-			CostBudgetACCol.Text = Options.Default.CostBudgetACCol.ToString();
 			CostBudgetYearCol.Text = Options.Default.CostBudgetYearCol.ToString();
-			TimeBudgetDateRow.Text = Options.Default.TimeBudgetDateRow.ToString();
 			TimeBudgetPosCol.Text = Options.Default.TimeBudgetPosCol.ToString();
 			TimeBudgetYearCol.Text = Options.Default.TimeBudgetYearCol.ToString();
-			CostBudgetRow_Proj.Text = Options.Default.CostBudgetRow_Proj.ToString();
 
 			IncAccts.Text = Options.Default.IncAccts.ToString();
 			Positions.Text = Options.Default.Positions.ToString();
@@ -76,6 +73,18 @@ namespace XeroDataDump
 			HideAccounts.Text = Options.Default.HideAccounts.ToString();
 			HoursDay.Text = Options.Default.HoursDay.ToString();
 			MonthRows.Text = Options.Default.MonthRows.ToString();
+
+			CostBudgetACHeader.Text = Options.Default.CostBudgetACHeader.ToString();
+			CostBudgetAccCol.Text = Options.Default.CostBudgetAccCol.ToString();
+			TBSearchCol.Text = Options.Default.TBSearchCol.ToString();
+			TBEndRowText.Text = Options.Default.TBEndRowText.ToString();
+			TBStartRowText.Text = Options.Default.TBStartRowText.ToString();
+
+			LogoFname.Text = Options.Default.LogoFname.ToString();
+			IgnoreBudgetSheets.Text = Options.Default.IgnoreBudgetSheets.ToString();
+			NetProfitLabel.Text = Options.Default.NetProfitLabel.ToString();
+			DeleteAcctRadio.IsChecked = Options.Default.DelEmptyAccounts;
+			HideAcctRadio.IsChecked = !Options.Default.DelEmptyAccounts;
 		}
 
 		private void disableUI()
@@ -84,6 +93,7 @@ namespace XeroDataDump
 			SaveName.IsEnabled = false;
 			SaveBrowse.IsEnabled = false;
 			BudgetBrowse.IsEnabled = false;
+			OpenReport.IsEnabled = false;
 		}
 		private void enableUI()
 		{
@@ -91,13 +101,15 @@ namespace XeroDataDump
 			SaveName.IsEnabled = true;
 			SaveBrowse.IsEnabled = true;
 			BudgetBrowse.IsEnabled = true;
+			OpenReport.IsEnabled = true;
 		}
 
 		private void GetDataButton_Click(object sender, RoutedEventArgs e)
 		{
-			if (string.IsNullOrWhiteSpace(Options.Default.CostBudgetFile) || string.IsNullOrWhiteSpace(Options.Default.TimeBudgetFile) || string.IsNullOrWhiteSpace(Options.Default.OutputDir))
+			Log.Text = "";
+			if (string.IsNullOrWhiteSpace(Options.Default.CostBudgetFile) || string.IsNullOrWhiteSpace(Options.Default.TimeBudgetFile) || string.IsNullOrWhiteSpace(Options.Default.OutputFile))
 			{
-				Log.Text = Log.Text + "Require Time Budget file, Cost Budget file and Output folder.\n";
+				Log.Text = Log.Text + "Require Time Budget file, Cost Budget file and Output file.\n";
 				return;
 			}
 			if (!File.Exists(TimeBudgetFname.Text))
@@ -107,6 +119,21 @@ namespace XeroDataDump
 			}
 			List<object> args = new List<object> { ToDate.SelectedDate };
 
+			// check year
+			int year = -1;
+			if (int.TryParse(Year.Text, out year)) { args.AddRange(new object[] { year, Month.SelectedIndex + 1 }); }
+			else {
+				Log.Text = Log.Text + "Year is not a number.\n";
+				return;
+			}
+
+			// Check year to date is not in the future.
+			if (ToDate.SelectedDate > DateTime.Now.AddDays(32))
+			{
+				Log.Text = Log.Text + "Year to date is set 32+ days in the future. You said you wouldn't do this.\n";
+				return;
+			}
+
 			worker = new BackgroundWorker();
 			worker.WorkerSupportsCancellation = true;
 			worker.WorkerReportsProgress = true;
@@ -114,15 +141,9 @@ namespace XeroDataDump
 			//worker.DoWork += new DoWorkEventHandler(Logic.CoreTest);
 			// Actual logic.
 			worker.DoWork += new DoWorkEventHandler(Logic.YTDDataDump);
-			int year = -1;
-			if (int.TryParse(Year.Text, out year)) { args.AddRange(new object[] { year, Month.SelectedIndex+1 });}
-			else { 
-				Log.Text = Log.Text + "Year is not a number.\n";
-				return;
-			}
 				
 			worker.RunWorkerCompleted +=
-				new RunWorkerCompletedEventHandler(worder_Done);
+				new RunWorkerCompletedEventHandler(worker_Done);
 			worker.ProgressChanged += worker_ProgressChanged;
 			disableUI();
 			worker.RunWorkerAsync(args.ToArray());
@@ -149,23 +170,24 @@ namespace XeroDataDump
 		{
 			// Displays a SaveFileDialog so the user can save the Image
 			// assigned to Button2. https://msdn.microsoft.com/en-us/library/sfezx97z(v=vs.110).aspx
-			CommonOpenFileDialog cofd = new CommonOpenFileDialog();
-			cofd.IsFolderPicker = true;
-			cofd.Title = "Save to folder...";
-			cofd.ShowDialog();
+			//CommonOpenFileDialog cofd = new CommonOpenFileDialog();
+			//cofd.IsFolderPicker = true;
+			//cofd.Title = "Save to Excel file...";
+			//cofd.ShowDialog();
 
-			//SaveFileDialog saveDialog = new SaveFileDialog();
-			//saveDialog.Filter = "Excel Workbook|*.xlsx";
-			//saveDialog.Title = "Save to location...";
-			//saveDialog.ShowDialog();
+			SaveFileDialog saveDialog = new SaveFileDialog();
+			saveDialog.Filter = "Excel Workbook|*.xlsx";
+			saveDialog.Title = "Save to location...";
+			saveDialog.ShowDialog();
 
 			// If the file name is not an empty string open it for saving.
-			try {
-				if (cofd.FileName != "")
+			try
+			{
+				if (saveDialog.FileName != "")
 				{
 					// get filename
-					SaveName.Text = cofd.FileName;
-					Options.Default.OutputDir = cofd.FileName;
+					SaveName.Text = saveDialog.FileName;
+					Options.Default.OutputFile = saveDialog.FileName;
 					Options.Default.Save();
 				} }
 			catch (InvalidOperationException) { }
@@ -179,13 +201,13 @@ namespace XeroDataDump
 
 		}
 
-		void worder_Done(object sender, RunWorkerCompletedEventArgs e)
+		void worker_Done(object sender, RunWorkerCompletedEventArgs e)
 		{
 			// First, handle the case where an exception was thrown. 
 			if (e.Error != null)
 			{
                 Log.Text += e.Error.Message;
-				//Logger.log(TraceEventType.Error, 9, "Worker Exception\r\n" + e.Error.GetType() + ":" + e.Error.Message + "\r\n" + e.Error.StackTrace);
+				Log.Text += "Worker Exception\r\n" + e.Error.GetType() + ":" + e.Error.Message + "\r\n" + e.Error.StackTrace;
 			}
 			else if (e.Cancelled)
 			{
@@ -302,40 +324,6 @@ namespace XeroDataDump
 			}
 		}
 
-		private void CostBudgetRow_LostFocus(object sender, RoutedEventArgs e)
-		{
-			if (!string.IsNullOrWhiteSpace(CostBudgetRow.Text))
-			{
-				int num = 1;
-				if (int.TryParse(CostBudgetRow.Text, out num))
-				{
-					Options.Default.CostBudgetRow = num;
-					Options.Default.Save();
-				}
-				else {
-					Log.Text = Log.Text + "Cost Row is not a number.\n";
-					return;
-				}
-			}
-		}
-
-		private void CostBudgetACCol_LostFocus(object sender, RoutedEventArgs e)
-		{
-			if (!string.IsNullOrWhiteSpace(CostBudgetACCol.Text))
-			{
-				int num = 1;
-				if (int.TryParse(CostBudgetACCol.Text, out num))
-				{
-					Options.Default.CostBudgetACCol = num;
-					Options.Default.Save();
-				}
-				else {
-					Log.Text = Log.Text + "Cost AC Column is not a number.\n";
-					return;
-				}
-			}
-		}
-
 		private void CostBudgetYearCol_LostFocus(object sender, RoutedEventArgs e)
 		{
 			if (!string.IsNullOrWhiteSpace(CostBudgetYearCol.Text))
@@ -348,23 +336,6 @@ namespace XeroDataDump
 				}
 				else {
 					Log.Text = Log.Text + "Cost Year Column is not a number.\n";
-					return;
-				}
-			}
-		}
-
-		private void TimeBudgetDateRow_LostFocus(object sender, RoutedEventArgs e)
-		{
-			if (!string.IsNullOrWhiteSpace(TimeBudgetDateRow.Text))
-			{
-				int num = 1;
-				if (int.TryParse(TimeBudgetDateRow.Text, out num))
-				{
-					Options.Default.TimeBudgetDateRow = num;
-					Options.Default.Save();
-				}
-				else {
-					Log.Text = Log.Text + "Time Date Row is not a number.\n";
 					return;
 				}
 			}
@@ -408,23 +379,6 @@ namespace XeroDataDump
 		{
 			Options.Default.IncAccts = IncAccts.Text;
 			Options.Default.Save();
-		}
-
-		private void CostBudgetRow_Proj_LostFocus(object sender, RoutedEventArgs e)
-		{
-			if (!string.IsNullOrWhiteSpace(CostBudgetRow_Proj.Text))
-			{
-				int num = 1;
-				if (int.TryParse(CostBudgetRow_Proj.Text, out num))
-				{
-					Options.Default.CostBudgetRow_Proj = num;
-					Options.Default.Save();
-				}
-				else {
-					Log.Text = Log.Text + "Cost Budget Proj Row is not a number.\n";
-					return;
-				}
-			}
 		}
 
 		private void Positions_LostFocus(object sender, RoutedEventArgs e)
@@ -512,6 +466,144 @@ namespace XeroDataDump
 					return;
 				}
 			}
+		}
+
+		private void TBStartRowText_LostFocus(object sender, RoutedEventArgs e)
+		{
+			Options.Default.TBStartRowText = TBStartRowText.Text;
+			Options.Default.Save();
+		}
+
+		private void TBEndRowText_LostFocus(object sender, RoutedEventArgs e)
+		{
+			Options.Default.TBEndRowText = TBEndRowText.Text;
+			Options.Default.Save();
+		}
+
+		private void TBSearchCol_LostFocus(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(TBSearchCol.Text))
+			{
+				int num = 0;
+				if (int.TryParse(TBSearchCol.Text, out num))
+				{
+					Options.Default.TBSearchCol = num;
+					Options.Default.Save();
+				}
+				else {
+					Log.Text = Log.Text + "Search Column is not a number.\n";
+					return;
+				}
+			}
+		}
+
+		private void CostBudgetAccCol_LostFocus(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(CostBudgetAccCol.Text))
+			{
+				int num = 0;
+				if (int.TryParse(CostBudgetAccCol.Text, out num))
+				{
+					Options.Default.CostBudgetAccCol = num;
+					Options.Default.Save();
+				}
+				else {
+					Log.Text = Log.Text + "Account Column is not a number.\n";
+					return;
+				}
+			}
+		}
+
+		private void CostBudgetACHeader_LostFocus(object sender, RoutedEventArgs e)
+		{
+			Options.Default.CostBudgetACHeader = CostBudgetACHeader.Text;
+			Options.Default.Save();
+		}
+
+		private void LogoFname_LostFocus(object sender, RoutedEventArgs e)
+		{
+			Options.Default.LogoFname = LogoFname.Text;
+			Options.Default.Save();
+		}
+
+		private void LogoBrowse_Click(object sender, RoutedEventArgs e)
+		{
+			OpenFileDialog openDialog = new OpenFileDialog();
+			openDialog.Filter = "Image|*.png;*.jpg;*.jpeg";
+			openDialog.Title = "Open Logo File...";
+			openDialog.ShowDialog();
+
+			// If the file name is not an empty string grab it
+			if (openDialog.FileName != "")
+			{
+				// get filename
+				LogoFname.Text = openDialog.FileName;
+				Options.Default.LogoFname = openDialog.FileName;
+				Options.Default.Save();
+			}
+		}
+
+		private void IgnoreBudgetSheets_LostFocus(object sender, RoutedEventArgs e)
+		{
+			Options.Default.IgnoreBudgetSheets = IgnoreBudgetSheets.Text;
+			Options.Default.Save();
+		}
+
+		private void NetProfitLabel_LostFocus(object sender, RoutedEventArgs e)
+		{
+			Options.Default.NetProfitLabel = NetProfitLabel.Text;
+			Options.Default.Save();
+		}
+
+		private void OpenReport_Click(object sender, RoutedEventArgs e)
+		{
+			if (!string.IsNullOrWhiteSpace(Options.Default.OutputFile)) {
+				Log.Text = Log.Text + "\nOpening report...";
+				System.Diagnostics.Process.Start(Options.Default.OutputFile);
+			}
+		}
+
+		private void SplitReport_Click(object sender, RoutedEventArgs e)
+		{
+			OpenFileDialog openDialog = new OpenFileDialog();
+			openDialog.Filter = "Excel Workbook|*.xlsx";
+			openDialog.Title = "Open Report to Split...";
+			openDialog.ShowDialog();
+
+			Log.Text = "";
+
+			// If the file name is not an empty string grab it
+			if (openDialog.FileName != "")
+			{
+				// do split
+
+				List<object> args = new List<object> { openDialog.FileName };
+				
+				worker = new BackgroundWorker();
+				worker.WorkerSupportsCancellation = false;
+				worker.WorkerReportsProgress = true;
+
+				//worker.DoWork += new DoWorkEventHandler(Logic.CoreTest);
+				// Actual logic.
+				worker.DoWork += new DoWorkEventHandler(Logic.SplitSheets);
+
+				worker.RunWorkerCompleted +=
+					new RunWorkerCompletedEventHandler(worker_Done);
+				disableUI();
+				worker.RunWorkerAsync(args.ToArray());
+			}
+			else
+			{
+				Log.Text = Log.Text + "No file selected.\n";
+			}
+
+
+		}
+
+		private void RadioButton_Checked(object sender, RoutedEventArgs e)
+		{
+			Options.Default.DelEmptyAccounts = (bool)DeleteAcctRadio.IsChecked;
+			Options.Default.Save();
 		}
 	}
 }

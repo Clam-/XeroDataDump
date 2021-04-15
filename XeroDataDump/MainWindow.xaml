@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:XeroDataDump"
         mc:Ignorable="d"
 		x:Name="mainwin"
-        Title="XeroDataDump" Height="540" Width="640">
+        Title="XeroDataDump" Height="640" Width="640">
     <Window.Resources>
         <local:EnumToBoolConverter x:Key="EBConverter"/>
 		<Style x:Key="BaseStyle" TargetType="FrameworkElement">
@@ -98,13 +98,20 @@
 						<ColumnDefinition Width="Auto"/>
 						<ColumnDefinition Width="Auto"/>
 					</Grid.ColumnDefinitions>
-					<Label Grid.Column="0" Content="Save to folder:" />
+					<Label Grid.Column="0" Content="Report Filename:" />
 					<TextBox Name="SaveName" Grid.Column="1" />
 					<Button Name="SaveBrowse" Grid.Column="2" Content="Browse" Click="SaveBrowse_Click"/>
 				</Grid>
 
 				<Grid Grid.Row="6">
-					<Button Name="GetDataButton" Content="Dump Data to Excel file" Click="GetDataButton_Click"/>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="1*"/>
+						<ColumnDefinition Width="1*"/>
+						<ColumnDefinition Width="1*"/>
+					</Grid.ColumnDefinitions>
+					<Button Grid.Column="0" Name="GetDataButton" Content="Dump Data to Excel file" Click="GetDataButton_Click"/>
+					<Button Grid.Column="1" Name="OpenReport" Content="Open Report" Click="OpenReport_Click"/>
+					<Button Grid.Column="2" Name="SplitReport" Content="Split a Report" Click="SplitReport_Click"/>
 				</Grid>
 				<Grid Grid.Row="7">
 					<TextBox Name="Log" VerticalAlignment="Stretch" FontFamily="Courier New" FontSize="14.667" ScrollViewer.VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"/>
@@ -114,6 +121,7 @@
 		<TabItem Header="Settings">
 			<Grid Margin="5">
 				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto"/>
 					<RowDefinition Height="Auto"/>
 					<RowDefinition Height="Auto"/>
 					<RowDefinition Height="Auto"/>
@@ -135,13 +143,32 @@
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="Auto"/>
 						<ColumnDefinition Width="1*"/>
+					</Grid.ColumnDefinitions>
+					<Label Grid.Column="0" Content="Net Profit label:" />
+					<TextBox Name="NetProfitLabel" Grid.Column="1" Text="" LostFocus="NetProfitLabel_LostFocus"/>
+				</Grid>
+				
+				<Grid Grid.Row="2">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="1*"/>
+						<ColumnDefinition Width="Auto"/>
+					</Grid.ColumnDefinitions>
+					<Label Grid.Column="0" Content="Logo file:" />
+					<TextBox Name="LogoFname" Grid.Column="1" LostFocus="LogoFname_LostFocus"/>
+					<Button Name="LogoBrowse" Grid.Column="2" Content="Browse" Click="LogoBrowse_Click"/>
+				</Grid>
+				<Grid Grid.Row="3">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="Auto"/>
+						<ColumnDefinition Width="1*"/>
 						<ColumnDefinition Width="Auto"/>
 					</Grid.ColumnDefinitions>
 					<Label Grid.Column="0" Content="Private certificate file:" />
 					<TextBox IsEnabled="False" Name="CertFname" Grid.Column="1" />
 					<Button Name="CertBrowse" Grid.Column="2" Content="Browse" Click="CertBrowse_Click"/>
 				</Grid>
-				<Grid Grid.Row="2">
+				<Grid Grid.Row="4">
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="Auto"/>
 						<ColumnDefinition Width="1*"/>
@@ -149,7 +176,7 @@
 					<Label Grid.Column="0" Content="Certificate password:" />
 					<PasswordBox Name="CertPass" Grid.Column="1" LostFocus="CertPass_LostFocus"/>
 				</Grid>
-				<Grid Grid.Row="3">
+				<Grid Grid.Row="5">
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="Auto"/>
 						<ColumnDefinition Width="1*"/>
@@ -157,64 +184,31 @@
 					<Label Grid.Column="0" Content="Xero Consumer Key:" />
 					<PasswordBox Name="ConsumerKey" Grid.Column="1" LostFocus="ConsKey_LostFocus"/>
 				</Grid>
-				<Grid Grid.Row="4">
-					<GroupBox Header="Cost budget file information (Numbers only)">
-						<Grid>
-							<Grid.ColumnDefinitions>
-								<ColumnDefinition Width="Auto"/>
-								<ColumnDefinition Width="1*"/>
-								<ColumnDefinition Width="Auto"/>
-								<ColumnDefinition Width="1*"/>
-								<ColumnDefinition Width="Auto"/>
-								<ColumnDefinition Width="1*"/>
-								<ColumnDefinition Width="Auto"/>
-								<ColumnDefinition Width="1*"/>
-							</Grid.ColumnDefinitions>
-							<Label Grid.Column="0" Content="Date row:" />
-							<TextBox Name="CostBudgetRow" Grid.Column="1" LostFocus="CostBudgetRow_LostFocus"/>
-							<Label Grid.Column="2" Content="Proj Date row:" />
-							<TextBox Name="CostBudgetRow_Proj" Grid.Column="3" LostFocus="CostBudgetRow_Proj_LostFocus"/>
-							<Label Grid.Column="4" Content="A/C name column:" />
-							<TextBox Name="CostBudgetACCol" Grid.Column="5" LostFocus="CostBudgetACCol_LostFocus"/>
-							<Label Grid.Column="6" Content="Year start column:" />
-							<TextBox Name="CostBudgetYearCol" Grid.Column="7" LostFocus="CostBudgetYearCol_LostFocus"/>
-						</Grid>
-					</GroupBox>
-				</Grid>
-				<Grid Grid.Row="5">
-					<GroupBox Header="Time budget file information">
-						<Grid>
-							<Grid.ColumnDefinitions>
-								<ColumnDefinition Width="Auto"/>
-								<ColumnDefinition Width="1*"/>
-								<ColumnDefinition Width="Auto"/>
-								<ColumnDefinition Width="1*"/>
-								<ColumnDefinition Width="Auto"/>
-								<ColumnDefinition Width="1*"/>
-							</Grid.ColumnDefinitions>
-							<Label Grid.Column="0" Content="Date row:" />
-							<TextBox Name="TimeBudgetDateRow" Grid.Column="1" LostFocus="TimeBudgetDateRow_LostFocus"/>
-							<Label Grid.Column="2" Content="Position column:" />
-							<TextBox Name="TimeBudgetPosCol" Grid.Column="3" LostFocus="TimeBudgetPosCol_LostFocus"/>
-							<Label Grid.Column="4" Content="Year start column:" />
-							<TextBox Name="TimeBudgetYearCol" Grid.Column="5" LostFocus="TimeBudgetYearCol_LostFocus"/>
-						</Grid>
-					</GroupBox>
-				</Grid>
-				<Grid Grid.Row="6">
+				<GroupBox Grid.Row="6" Header="Remove or Hide empty accounts (0 budget, 0 actual)">
+					<Grid >
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="1*"/>
+							<ColumnDefinition Width="1*"/>
+							<ColumnDefinition Width="2*"/>
+						</Grid.ColumnDefinitions>
+						<RadioButton Grid.Column="0" Name="DeleteAcctRadio" GroupName="DelEmptyAccounts" Content="Delete" Checked="RadioButton_Checked"/>
+						<RadioButton Grid.Column="1" Name="HideAcctRadio" GroupName="DelEmptyAccounts" Content="Hide" Checked="RadioButton_Checked" />
+					</Grid>
+				</GroupBox>
+				<Grid Grid.Row="7">
 					<GroupBox Header="Income accounts (One per line. Must match exactly.)">
 						<TextBox Name="IncAccts" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="IncAccts_LostFocus" AcceptsReturn="True" />
 					</GroupBox>
 				</Grid>
 			</Grid>
 		</TabItem>
-		<TabItem Header="Timesheets">
+		<TabItem Header="Timesheet">
 			<Grid Margin="5">
 				<Grid.RowDefinitions>
 					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="12*"/>
 					<RowDefinition Height="9*"/>
-					<RowDefinition Height="10*"/>
-					<RowDefinition Height="9*"/>
+					<RowDefinition Height="Auto"/>
 				</Grid.RowDefinitions>
 				<Grid Grid.Row="0">
 					<Grid.ColumnDefinitions>
@@ -239,22 +233,8 @@
 						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="Positions" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="Positions_LostFocus" AcceptsReturn="True" />
 					</Grid>
 				</GroupBox>
-				<GroupBox Grid.Row="2" Header="Project name collation - grouping Xero and timesheet projects (last item becomes display name)">
-					<Grid>
-						<Grid.RowDefinitions>
-							<RowDefinition Height="Auto"/>
-							<RowDefinition Height="1*"/>
-						</Grid.RowDefinitions>
-						<Grid.ColumnDefinitions>
-							<ColumnDefinition Width="Auto"/>
-							<ColumnDefinition Width="1*"/>
-						</Grid.ColumnDefinitions>
-						<Label Grid.Row="0" Grid.Column="0" Content="Example:"/>
-						<TextBox Grid.Row="0" Grid.Column="1" Text="PROJ, PROJ ITE" IsEnabled="False"/>
-						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="Collation" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="Collation_LostFocus" AcceptsReturn="True" />
-					</Grid>
-				</GroupBox>
-				<GroupBox Grid.Row="3" Header="Ignore sheets (one per line)">
+				
+				<GroupBox Grid.Row="2" Header="Ignore sheets (one per line)">
 					<Grid>
 						<Grid.RowDefinitions>
 							<RowDefinition Height="1*"/>
@@ -265,17 +245,7 @@
 						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="IgnoreSheets" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="IgnoreSheets_LostFocus" AcceptsReturn="True" />
 					</Grid>
 				</GroupBox>
-			</Grid>
-		</TabItem>
-		<TabItem Header="More Timesheets">
-			<Grid Margin="5">
-				<Grid.RowDefinitions>
-					<RowDefinition Height="Auto"/>
-					<RowDefinition Height="9*"/>
-					<RowDefinition Height="10*"/>
-					<RowDefinition Height="9*"/>
-				</Grid.RowDefinitions>
-				<Grid Grid.Row="0">
+				<Grid Grid.Row="3">
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="Auto"/>
 						<ColumnDefinition Width="1*"/>
@@ -283,7 +253,15 @@
 					<Label Grid.Column="0" Content="Rows between months:" />
 					<TextBox Name="MonthRows" Grid.Column="1" LostFocus="MonthRows_LostFocus"/>
 				</Grid>
-				<GroupBox Grid.Row="1" Header="Data about timesheet cell postitions">
+			</Grid>
+		</TabItem>
+		<TabItem Header="Project/Account Collation">
+			<Grid Margin="5">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="10*"/>
+					<RowDefinition Height="10*"/>
+				</Grid.RowDefinitions>
+				<GroupBox Grid.Row="0" Header="Project name collation - grouping Xero and timesheet projects (last item becomes display name)">
 					<Grid>
 						<Grid.RowDefinitions>
 							<RowDefinition Height="Auto"/>
@@ -293,10 +271,12 @@
 							<ColumnDefinition Width="Auto"/>
 							<ColumnDefinition Width="1*"/>
 						</Grid.ColumnDefinitions>
-
+						<Label Grid.Row="0" Grid.Column="0" Content="Example:"/>
+						<TextBox Grid.Row="0" Grid.Column="1" Text="PROJ,PROJ ITE" IsEnabled="False"/>
+						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="Collation" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="Collation_LostFocus" AcceptsReturn="True" />
 					</Grid>
 				</GroupBox>
-				<GroupBox Grid.Row="2" Header="??">
+				<GroupBox Grid.Row="1" Header="Accounts to Merge (Comma separated, last item becomes display name)">
 					<Grid>
 						<Grid.RowDefinitions>
 							<RowDefinition Height="Auto"/>
@@ -306,10 +286,79 @@
 							<ColumnDefinition Width="Auto"/>
 							<ColumnDefinition Width="1*"/>
 						</Grid.ColumnDefinitions>
-
+						<Label Grid.Row="0" Grid.Column="0" Content="Example:"/>
+						<TextBox Grid.Row="0" Grid.Column="1" Text="Travel - flights, Travel - accomodation, Travel other, Travel" IsEnabled="False"/>
+						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="MergeAccounts" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="MergeAccounts_LostFocus" AcceptsReturn="True" />
 					</Grid>
 				</GroupBox>
-				<GroupBox Grid.Row="3" Header="?">
+			</Grid>
+		</TabItem>
+		<TabItem Header="Budgets">
+			<Grid Margin="5">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="1*"/>
+				</Grid.RowDefinitions>
+				<GroupBox Grid.Row="0" Header="Time Budget">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="Auto"/>
+						</Grid.RowDefinitions>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="Auto"/>
+							<ColumnDefinition Width="1*"/>
+						</Grid.ColumnDefinitions>
+						<Label Grid.Row="0" Grid.Column="0" Content="Start row search (text above starting row):" />
+						<TextBox Grid.Row="0" Name="TBStartRowText" Grid.Column="1" LostFocus="TBStartRowText_LostFocus"/>
+						<Label Grid.Row="1" Grid.Column="0" Content="End row search (text below last row):" />
+						<TextBox Grid.Row="1" Name="TBEndRowText" Grid.Column="1" LostFocus="TBEndRowText_LostFocus"/>
+						<Label Grid.Row="2" Grid.Column="0" Content="Search Column (number):" />
+						<TextBox Grid.Row="2" Name="TBSearchCol" Grid.Column="1" LostFocus="TBSearchCol_LostFocus"/>
+						<Grid Grid.Row="3" Grid.ColumnSpan="2">
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="Auto"/>
+								<ColumnDefinition Width="1*"/>
+								<ColumnDefinition Width="Auto"/>
+								<ColumnDefinition Width="1*"/>
+							</Grid.ColumnDefinitions>
+							<Label Grid.Column="0" Content="Position column (number):" />
+							<TextBox Name="TimeBudgetPosCol" Grid.Column="1" LostFocus="TimeBudgetPosCol_LostFocus"/>
+							<Label Grid.Column="2" Content="Year start column (number):" />
+							<TextBox Name="TimeBudgetYearCol" Grid.Column="3" LostFocus="TimeBudgetYearCol_LostFocus"/>
+						</Grid>
+					</Grid>
+				</GroupBox>
+
+				<GroupBox Grid.Row="3" Header="Cost budget file information (Numbers only)">
+					<Grid>
+						<Grid.RowDefinitions>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="Auto"/>
+							<RowDefinition Height="Auto"/>
+						</Grid.RowDefinitions>
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="Auto"/>
+							<ColumnDefinition Width="1*"/>
+						</Grid.ColumnDefinitions>
+						<Label Grid.Row="0" Grid.Column="0" Content="Account Name Column (number):" />
+						<TextBox Grid.Row="0" Name="CostBudgetAccCol" Grid.Column="1" LostFocus="CostBudgetAccCol_LostFocus"/>
+
+						<Label Grid.Row="1" Grid.Column="0" Content="Account name header text:" />
+						<TextBox Grid.Row="1" Name="CostBudgetACHeader" Grid.Column="1" LostFocus="CostBudgetACHeader_LostFocus"/>
+						<Label Grid.Row="2" Grid.Column="0" Content="Year start column (number):" />
+						<TextBox Grid.Row="2" Name="CostBudgetYearCol" Grid.Column="1" LostFocus="CostBudgetYearCol_LostFocus"/>
+					</Grid>
+				</GroupBox>
+				<GroupBox Grid.Row="4" Header="Ignore sheets (one per line)">
 					<Grid>
 						<Grid.RowDefinitions>
 							<RowDefinition Height="1*"/>
@@ -317,6 +366,7 @@
 						<Grid.ColumnDefinitions>
 							<ColumnDefinition Width="1*"/>
 						</Grid.ColumnDefinitions>
+						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="IgnoreBudgetSheets" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="IgnoreBudgetSheets_LostFocus" AcceptsReturn="True" />
 					</Grid>
 				</GroupBox>
 			</Grid>
@@ -341,21 +391,7 @@
 						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="OverheadProjs" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="OverheadProjs_LostFocus" AcceptsReturn="True" />
 					</Grid>
 				</GroupBox>
-				<GroupBox Grid.Row="1" Header="Accounts to Merge (Comma separated, last item becomes display name)">
-					<Grid>
-						<Grid.RowDefinitions>
-							<RowDefinition Height="Auto"/>
-							<RowDefinition Height="1*"/>
-						</Grid.RowDefinitions>
-						<Grid.ColumnDefinitions>
-							<ColumnDefinition Width="Auto"/>
-							<ColumnDefinition Width="1*"/>
-						</Grid.ColumnDefinitions>
-						<Label Grid.Row="0" Grid.Column="0" Content="Example:"/>
-						<TextBox Grid.Row="0" Grid.Column="1" Text="Travel - flights, Travel - accomodation, Travel other, Travel" IsEnabled="False"/>
-						<TextBox Grid.Row="1" Grid.ColumnSpan="2" Name="MergeAccounts" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="MergeAccounts_LostFocus" AcceptsReturn="True" />
-					</Grid>
-				</GroupBox>
+
 				<GroupBox Grid.Row="2" Header="Remove Accounts (One per line)">
 					<TextBox Name="HideAccounts" VerticalAlignment="Stretch" ScrollViewer.VerticalScrollBarVisibility="Auto" LostFocus="HideAccounts_LostFocus" AcceptsReturn="True" />
 				</GroupBox>

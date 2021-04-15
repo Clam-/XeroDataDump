@@ -1,5 +1,4 @@
 ﻿using PM = Xero.Api.Payroll.Australia.Model;
-using CM = Xero.Api.Core.Model;
 using System.ComponentModel;
 using System.Linq;
 using System.Collections.Generic;
@@ -18,7 +17,6 @@ namespace XeroDataDump
 
 		static Dictionary<Guid, List<Tuple<Guid, decimal>>> projectsTime = null;
 
-		static Dictionary<Guid, string> employees = new Dictionary<Guid, string>();
 		static List<string> IncomeAccounts = new List<string>();
 		static List<string> HideAccounts = new List<string>();
 
@@ -26,12 +24,12 @@ namespace XeroDataDump
 		static Core c = null;
 
 		static Dictionary<int, Tuple<string, decimal>> posIDmap = new Dictionary<int, Tuple<string, decimal>>();
-		static Dictionary<string, decimal> posmap = new Dictionary<string, decimal>();
+		static Dictionary<string, Tuple<int, decimal>> posmap = new Dictionary<string, Tuple<int, decimal>>();
 		static Dictionary<string, Dictionary<string, decimal>> projPosHours = new Dictionary<string, Dictionary<string,decimal>>();
-		static Dictionary<string, string> projCollation = new Dictionary<string, string>();
+		static Dictionary<string, string> projCollation = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		static List<string> overheadProjs = new List<string>();
 
-		static Dictionary<string, string> mergeAccounts = new Dictionary<string, string>(); // alias -> rename
+		static Dictionary<string, string> mergeAccounts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase); // alias -> rename
 
 		static BackgroundWorker worker = null;
 		static StreamWriter logfile = null;
@@ -39,9 +37,8 @@ namespace XeroDataDump
 		static int BUDGETCOLUMN = 3;
 		static int ACTUALCOLUMN = 4;
 		static int OVERALLROWSTART = 4;
-		static int PROJETROWSTART = 4;
-		static int PROJ_BUDGET_COLUMN = 3;
-		static int PROJ_ACTUAL_COLUMN = 4;
+		static int PROJ_BUDGET_COLUMN = BUDGETCOLUMN;
+		static int PROJ_ACTUAL_COLUMN = ACTUALCOLUMN;
 		static int PROJ_HOURS_ROW = 4;
 		static int PROJ_COST_ROW = 6;
 		static int PROJ_OTHERS_ROW = 8;
@@ -53,7 +50,20 @@ namespace XeroDataDump
 		//static int BUDGETTIMECOLSEARCH = 2;
 		//static string BUDGETTIMESSEARCH = "Total Days YTD";
 		static int BUDGETTIMECOLUMNSTART = 3;
+		//_-\$* #,##0_-;-\$* #,##0_-;_-\$* " -"_-;_-@_-
+		static string CURRENCY_FORMAT = "_-\\$* #,##0_-;[Red]_\\$* (#,##0)_-;_-\\$* \" -\"_-;_-@_-";
+		//static string CURRENCY_FORMAT = "$#,##0";
+		static string NUMBER_FORMAT = "0;[Red]-0;[Black] \\- ; \\- ";
+		static string PERCENT_FORMAT = "0%;[Red]-0%;[Black]0%; \\- ";
+		static string DATE_FORMAT = "d/mm/yyyy;@";
+		//static string DATE_FORMAT = "dd/mm/yyyy;@";
 
+		static string TOTAL_STAFF_DAYS = "Total staff days";
+		static string TOTAL_STAFF_COST = "Total staff cost";
+		static string FULL_YEAR = "FY{0}/{1} Budget";
+		static string GNET_PROFIT = "Net Profit";
+		static string NET_PROFIT = "Net Profit";
+		static string NET_COST_TITLE = "Net Profit (inc. Staff Cost)";
 
 		static Guid ProjectTCID;
 
@@ -94,7 +104,11 @@ namespace XeroDataDump
 
 		private static void initOthers()
 		{
+			projPosHours = new Dictionary<string, Dictionary<string, decimal>>();
+
 			// init collation groups
+			projCollation = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			projCollation["Unassigned"] = "Overheads";
 			using (StringReader reader = new StringReader(Options.Default.Collation))
 			{
 				string line;
@@ -119,6 +133,8 @@ namespace XeroDataDump
 				}
 			}
 			// init position tables
+			posIDmap = new Dictionary<int, Tuple<string, decimal>>();
+			posmap = new Dictionary<string, Tuple<int, decimal>>();
 			using (StringReader reader = new StringReader(Options.Default.Positions))
 			{
 				string line;
@@ -143,12 +159,13 @@ namespace XeroDataDump
 						} else
 						{
 							posIDmap[id] = new Tuple<string, decimal>(pos, cost);
-							posmap[pos] = cost;
+							posmap[pos] = new Tuple<int, decimal>(id, cost);
 						}
 					}
 				}
 			}
 			// init overhead projects
+			overheadProjs = new List<string>();
 			using (StringReader reader = new StringReader(Options.Default.OverheadProjs))
 			{
 				string line;
@@ -159,6 +176,7 @@ namespace XeroDataDump
 				}
 			}
 			// init hide accounts
+			HideAccounts = new List<string>();
 			using (StringReader reader = new StringReader(Options.Default.HideAccounts))
 			{
 				string line;
@@ -170,6 +188,20 @@ namespace XeroDataDump
 			}
 
 			// init collation accounts
+			mergeAccounts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			if (!string.IsNullOrWhiteSpace(Options.Default.NetProfitLabel))
+			{
+				mergeAccounts["Net Profit"] = Options.Default.NetProfitLabel;
+				mergeAccounts[Options.Default.NetProfitLabel] = Options.Default.NetProfitLabel;
+				NET_PROFIT = Options.Default.NetProfitLabel;
+				NET_COST_TITLE = NET_PROFIT + " (inc. Staff Cost)";
+			}
+			else
+			{
+				NET_PROFIT = "Net Profit";
+				NET_COST_TITLE = "Net Profit (inc. Staff Cost)";
+			}
+
 			using (StringReader reader = new StringReader(Options.Default.MergeAccounts))
 			{
 				string line;
@@ -199,11 +231,16 @@ namespace XeroDataDump
 		{
 			var ws = wb.Worksheets.Add("Overall PL");
 			ws.Cells["A1"].Value = "Profit and loss"; ws.Cells["C1"].Value = "Begining"; ws.Cells["D1"].Value = "Ending";
-			ws.Cells["A2"].Value = Options.Default.OrganisationName; ws.Cells["C2"].Value = from.ToShortDateString(); ws.Cells["D2"].Value = to.ToShortDateString();
+			ws.Cells["A2"].Value = Options.Default.OrganisationName; ws.Cells["C2"].Value = from; ws.Cells["D2"].Value = to;
 
-			ws.Cells[OVERALLROWSTART, BUDGETCOLUMN-1].Value = "Budget Full";
+			ws.Cells[OVERALLROWSTART, 1].Value = "Accounts"; ws.Cells[OVERALLROWSTART, BUDGETCOLUMN-1].Value = string.Format(FULL_YEAR, from.Year % 100, (from.Year % 100) + 1);
 			ws.Cells[OVERALLROWSTART, BUDGETCOLUMN].Value = "Budget YTD"; ws.Cells[OVERALLROWSTART, ACTUALCOLUMN].Value = "Actual";
 			ws.Cells[OVERALLROWSTART, ACTUALCOLUMN+1].Value = "Var $"; ws.Cells[OVERALLROWSTART, ACTUALCOLUMN+2].Value = "Var %";
+			ws.Cells[OVERALLROWSTART, ACTUALCOLUMN + 3].Value = "Notes";
+
+			// Format
+			ws.Cells["A1:D1"].Style.Font.Bold = true; ws.Cells["A2"].Style.Font.Bold = true; ws.Cells["4:4"].Style.Font.Bold = true;
+			ws.Cells["C2"].Style.Numberformat.Format = DATE_FORMAT; ws.Cells["D2"].Style.Numberformat.Format = DATE_FORMAT;
 			return ws;
 		}
 
@@ -215,9 +252,14 @@ namespace XeroDataDump
 
 			var rowNum = OVERALLROWSTART + 1;
 
-			var mergedValue = new Dictionary<int, Tuple<string, decimal>>(); // row -> name, value
-			var mergeAddr = new Dictionary<string, int>(); // mergedname -> row
+			var incomelist = new List<string>();
+			var incomeitems = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+			var expenselist = new List<string>();
+			var expenseitems = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
 
+			Tuple<string, decimal> netprofit = null;
+
+			// split items in to income and expense
 			foreach (var row in plReport.Rows)
 			{
 				if (row.Cells == null)
@@ -230,64 +272,77 @@ namespace XeroDataDump
 							var acct = trow.Cells[0].Value;
 							if (HideAccounts.Contains(acct)) { continue; }
 							var value = decimal.Parse(trow.Cells[1].Value);
-							
-							// append merged accounts
+
+							// check if merging accounts
 							if (mergeAccounts.ContainsKey(acct))
 							{
-								// get merged row
-								var mergedName = mergeAccounts[acct];
-								int mergedRow;
-								bool skip = false;
-								if (mergeAddr.ContainsKey(mergedName))
-								{
-									mergedRow = mergeAddr[mergedName];
-									skip = true;
-								} else
-								{
-									mergeAddr[mergedName] = mergedRow = rowNum;
-								}
-								// update running total
-								if (mergedValue.ContainsKey(mergedRow))
-								{
-									mergedValue[mergedRow] = new Tuple<string, decimal>(mergedValue[mergedRow].Item1, mergedValue[mergedRow].Item2 + value);
-								} else
-								{
-									mergedValue[mergedRow] = new Tuple<string, decimal>(mergedName, value);
-								}
-								if (skip) { continue; }
+								acct = mergeAccounts[acct];
 							}
-
-							ws.Cells[rowNum, 1].Value = acct;
-							var acell = ws.Cells[rowNum, ACTUALCOLUMN];
-							acell.Value = value;
-							// insert formulas
-							if (IncomeAccounts.Contains(ws.Cells[rowNum, 1].Value))
-							{	// actual - budget
-								ws.Cells[rowNum, ACTUALCOLUMN + 1].Formula = "=" + acell.Address + "-" + ws.Cells[rowNum, BUDGETCOLUMN].Address;
-								// variance / actual
-								ws.Cells[rowNum, ACTUALCOLUMN + 2].Formula = "=" + ws.Cells[rowNum, ACTUALCOLUMN + 1].Address + "/" + acell.Address;
+							decimal item = 0;
+							// income or expense?
+							if (acct.Equals(NET_PROFIT, StringComparison.OrdinalIgnoreCase) || acct.Equals(GNET_PROFIT, StringComparison.OrdinalIgnoreCase))
+							{
+								netprofit = new Tuple<string, decimal>(acct, value);
+							}
+							else if (IncomeAccounts.Contains(acct))
+							{
+								incomeitems.TryGetValue(acct, out item);
+								incomeitems[acct] = item + value;
+								if (!incomelist.Contains(acct))
+								{
+									if (acct.StartsWith("Total", StringComparison.OrdinalIgnoreCase))
+										incomelist.Add(acct);
+									else
+										incomelist.Insert(0, acct);
+								}
 							}
 							else
-							{	// budget - actual
-								ws.Cells[rowNum, ACTUALCOLUMN + 1].Formula = "=" + ws.Cells[rowNum, BUDGETCOLUMN].Address + "-" + acell.Address;
-								// variance / budget
-								ws.Cells[rowNum, ACTUALCOLUMN + 2].Formula = "=" + ws.Cells[rowNum, ACTUALCOLUMN + 1].Address + "/" + ws.Cells[rowNum, BUDGETCOLUMN].Address;
+							{
+								expenseitems.TryGetValue(acct, out item);
+								expenseitems[acct] = item + value;
+								if (!expenselist.Contains(acct))
+								{
+									if (acct.StartsWith("Total", StringComparison.OrdinalIgnoreCase))
+										expenselist.Add(acct);
+									else
+										expenselist.Insert(0, acct);
+								}
 							}
 						}
-						rowNum++;
 					}
 				}
 			}
-			// process merged accounts
-			foreach (var kvpair in mergedValue)
+
+			foreach (var acct in incomelist)
 			{
-				rowNum = kvpair.Key;
-				var name = kvpair.Value.Item1;
-				var value = kvpair.Value.Item2;
-				ws.Cells[rowNum, 1].Value = name;
-				ws.Cells[rowNum, ACTUALCOLUMN].Value = value;
+				ws.Cells[rowNum, 1].Value = acct;
+				ws.Cells[rowNum, ACTUALCOLUMN].Value = incomeitems[acct];
+				ws.Cells[rowNum, BUDGETCOLUMN - 1, rowNum, BUDGETCOLUMN].Value = 0; // fill in missing actual
+
+				// insert formulas
+				addFormula(ws, acct, rowNum, ACTUALCOLUMN, BUDGETCOLUMN);
+				rowNum++;
 			}
-			
+			ws.Cells[rowNum, 1].Value = "Operating Expenses";
+			rowNum++;
+			foreach (var acct in expenselist)
+			{
+				ws.Cells[rowNum, 1].Value = acct;
+				ws.Cells[rowNum, ACTUALCOLUMN].Value = expenseitems[acct];
+				ws.Cells[rowNum, BUDGETCOLUMN - 1, rowNum, BUDGETCOLUMN].Value = 0; // fill in missing actual
+
+				// insert formulas
+				addFormula(ws, acct, rowNum, ACTUALCOLUMN, BUDGETCOLUMN);
+				rowNum++;
+			}
+			if (netprofit != null)
+			{
+				ws.Cells[rowNum, 1].Value = netprofit.Item1;
+				ws.Cells[rowNum, ACTUALCOLUMN].Value = netprofit.Item2;
+				ws.Cells[rowNum, BUDGETCOLUMN - 1, rowNum, BUDGETCOLUMN].Value = 0; // fill in missing actual
+				addFormula(ws, null, rowNum, ACTUALCOLUMN, BUDGETCOLUMN, inc: true);
+				rowNum++;
+			}
 		}
 
 		private static bool IsEmptyCell(string data)
@@ -295,18 +350,41 @@ namespace XeroDataDump
 			return string.IsNullOrWhiteSpace(data);
 		}
 
-		private static int searchText(ExcelWorksheet ws, int rowi, int coli, string text)
+		private static int searchText(ExcelWorksheet ws, int rowi, int coli, string text, bool reverse = false, bool skipempty = false, bool startswith = false)
 		{
 			var row = rowi;
+			var i = 0;
 			string data = ws.Cells[row, coli].GetValue<string>();
-			while (!IsEmptyCell(data))
+			bool notbail;
+			// loop condition
+			if (skipempty == true)
+				notbail = i < 300;
+			else
+				notbail = !IsEmptyCell(data);
+			while (notbail)
 			{
-				if (data.Equals(text, StringComparison.Ordinal))
+				if (!startswith)
 				{
-					return row;
+					if (data != null && data.Equals(text, StringComparison.OrdinalIgnoreCase))
+						return row;
 				}
-				row = row + 1;
+				else
+				{
+					if (data != null && data.StartsWith(text, StringComparison.OrdinalIgnoreCase))
+						return row;
+				}
+
+				if (reverse)
+					row--;
+				else
+					row++;
 				data = ws.Cells[row, coli].GetValue<string>();
+				// loop condition
+				if (skipempty == true)
+					notbail = i < 300;
+				else
+					notbail = !IsEmptyCell(data);
+				i++;
 			}
 			throw new ArgumentException("Text not found");
 		}
@@ -322,11 +400,19 @@ namespace XeroDataDump
 			LogBox("Processing Overall Budget\n");
 			var budgetSheet = budget.Worksheets["Overall"];
 			var rownum = OVERALLROWSTART + 1;
-			var row = Options.Default.CostBudgetRow + 1;
+			int budgetrow;
+			try {
+				budgetrow = searchText(budgetSheet, 1, Options.Default.CostBudgetAccCol, Options.Default.CostBudgetACHeader, skipempty: true) + 1;
+			} catch (ArgumentException)
+			{
+				throw new ArgumentException("Couldn't find Account name header text for overall budget");
+			}
 
 			var mergedValue = new Dictionary<int, Tuple<decimal,decimal>>(); // row -> budgetfull, budgetytd
 
-			string budgetAccName = budgetSheet.Cells[row, Options.Default.CostBudgetACCol].GetValue<string>();
+			string budgetAccName = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetAccCol].GetValue<string>();
+			var missingActuals = new Dictionary<string, Tuple<decimal, decimal>>(StringComparer.OrdinalIgnoreCase);
+			int irow;
 
 			while (!IsEmptyCell(budgetAccName))
 			{
@@ -336,19 +422,19 @@ namespace XeroDataDump
 					budgetAccName = mergeAccounts[budgetAccName];
 					merge = true;
 				}
-				int irow = -1;
+				irow = -1;
 				try
 				{
 					irow = searchText(ws, rownum, 1, budgetAccName);
 				} catch (ArgumentException)
 				{
-					// Missing budget
-					LogBox(string.Format("MISSING FROM ACTUAL ({0}). Merging ({1})", budgetAccName, merge));
+					// Missing actual in budget
+					// LogBox(string.Format("MISSING FROM ACTUAL ({0}). Merging ({1})", budgetAccName, merge));
 				}
+				var budgetytd = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetYearCol + 1, budgetrow, Options.Default.CostBudgetYearCol + months].Sum(cell => { return getDecimal(cell); });
+				var budgetfull = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetYearCol].GetValue<decimal>();
 				if (irow > 0) {
 					//LogBox("Summing: " + (Options.Default.CostBudgetYearCol + 1) + " - " + (Options.Default.CostBudgetYearCol + months));
-					var budgetytd = budgetSheet.Cells[row, Options.Default.CostBudgetYearCol + 1, row, Options.Default.CostBudgetYearCol + months].Sum(cell => { return getDecimal(cell); });
-					var budgetfull = budgetSheet.Cells[row, Options.Default.CostBudgetYearCol].GetValue<decimal>();
 					if (merge)
 					{
 						if (mergedValue.ContainsKey(irow))  // sum values
@@ -360,9 +446,16 @@ namespace XeroDataDump
 						ws.Cells[irow, BUDGETCOLUMN].Value = budgetytd;
 						ws.Cells[irow, BUDGETCOLUMN - 1].Value = budgetfull;
 					}
+				} else
+				{
+					// build list of budgets with missing actuals to prepend at top of report
+					if (missingActuals.ContainsKey(budgetAccName))  // sum values
+						missingActuals[budgetAccName] = new Tuple<decimal, decimal>(missingActuals[budgetAccName].Item1 + budgetfull, missingActuals[budgetAccName].Item2 + budgetytd);
+					else  // new values
+						missingActuals[budgetAccName] = new Tuple<decimal, decimal>(budgetfull, budgetytd);
 				}
-				row = row + 1;
-				budgetAccName = budgetSheet.Cells[row, Options.Default.CostBudgetACCol].GetValue<string>();
+				budgetrow = budgetrow + 1;
+				budgetAccName = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetAccCol].GetValue<string>();
 			}
 			// process merged accounts
 			foreach (var kvpair in mergedValue)
@@ -373,60 +466,106 @@ namespace XeroDataDump
 				ws.Cells[rownum, BUDGETCOLUMN].Value = budgetytd;
 				ws.Cells[rownum, BUDGETCOLUMN - 1].Value = budgetfull;
 			}
+			// process budgets with missing actuals split between income and expense
+			rownum = OVERALLROWSTART + 1;
+			foreach (var kvpair in missingActuals)
+			{
+				if (IncomeAccounts.Contains(kvpair.Key))
+					irow = rownum;
+				else
+					irow = searchText(ws, rownum, 1, "Operating Expenses") + 1;
+				ws.InsertRow(irow, 1);
+				ws.Cells[irow, 1].Value = kvpair.Key;
+				ws.Cells[irow, BUDGETCOLUMN].Value = kvpair.Value.Item2;
+				ws.Cells[irow, BUDGETCOLUMN - 1].Value = kvpair.Value.Item1;
+				ws.Cells[irow, ACTUALCOLUMN].Value = 0; // fill in missing actual
+				addFormula(ws, kvpair.Key, irow, ACTUALCOLUMN, BUDGETCOLUMN);
+			}
 			//Format cells
-			ws.Cells[OVERALLROWSTART, BUDGETCOLUMN - 1, ws.Dimension.Rows, ACTUALCOLUMN + 1].Style.Numberformat.Format = "$#,##0.00";
-			ws.Cells[OVERALLROWSTART, ACTUALCOLUMN +2, ws.Dimension.Rows, ACTUALCOLUMN + 2].Style.Numberformat.Format = "0.00%";
+			ws.Cells[OVERALLROWSTART + 1, BUDGETCOLUMN - 1, ws.Dimension.Rows, ACTUALCOLUMN + 1].Style.Numberformat.Format = CURRENCY_FORMAT;
+			ws.Cells[OVERALLROWSTART + 1, ACTUALCOLUMN +2, ws.Dimension.Rows, ACTUALCOLUMN + 2].Style.Numberformat.Format = PERCENT_FORMAT;
 		}
 
-		private static void processProjectsCostBudget(ExcelWorkbook wb, ExcelWorkbook budget, int months)
+		private static void formatAccCells(ExcelWorksheet ws, int row = 0)
+		{
+			if (row > 0)
+			{
+				ws.Cells[row, PROJ_BUDGET_COLUMN - 1, row, PROJ_ACTUAL_COLUMN + 1].Style.Numberformat.Format = CURRENCY_FORMAT;
+				ws.Cells[row, PROJ_ACTUAL_COLUMN + 2, row, PROJ_ACTUAL_COLUMN + 2].Style.Numberformat.Format = PERCENT_FORMAT;
+			}
+			else {
+				ws.Cells[PROJ_OTHERS_ROW + 1, PROJ_BUDGET_COLUMN - 1, ws.Dimension.Rows, PROJ_ACTUAL_COLUMN + 1].Style.Numberformat.Format = CURRENCY_FORMAT;
+				ws.Cells[PROJ_OTHERS_ROW + 1, PROJ_ACTUAL_COLUMN + 2, ws.Dimension.Rows, PROJ_ACTUAL_COLUMN + 2].Style.Numberformat.Format = PERCENT_FORMAT;
+			}
+		}
+
+		private static void processProjectsCostBudget(ExcelWorkbook wb, ExcelWorkbook budget, int months, DateTime from, DateTime to)
 		{
 			LogBox("Processing Project Budgets - Cost\n");
+			var doneProjs = new List<string>();
 
-			foreach (var ws in wb.Worksheets)
+			var sheets = wb.Worksheets.Select(x => x.Name).ToList();
+			int index = 0;
+			bool passone = true;
+
+			while (index < sheets.Count)
 			{
-				if (ws.Name.Equals("Overall PL", StringComparison.OrdinalIgnoreCase)) { continue; }
+				var ws = wb.Worksheets[sheets[index]];
+				if (ws.Name.Equals("Overall PL", StringComparison.OrdinalIgnoreCase)) { doneProjs.Add(ws.Name); index++; continue; }
 				// get budget sheet
 				var budgetSheet = budget.Worksheets[ws.Name];
-				if (budgetSheet == null) { LogBox(string.Format("No Cost Budget found for ({0})", ws.Name)); continue; }
+				if (budgetSheet == null) { LogBox(string.Format("No Cost Budget found for ({0})", ws.Name)); index++; formatAccCells(ws); continue; }
 
 				var wsrow = PROJ_OTHERS_ROW + 1;
-				var budgetrow = Options.Default.CostBudgetRow_Proj + 1;
+				int budgetrow;
+				try
+				{
+					budgetrow = searchText(budgetSheet, 1, Options.Default.CostBudgetAccCol, Options.Default.CostBudgetACHeader, skipempty: true) + 1;
+				}
+				catch (ArgumentException)
+				{
+					throw new ArgumentException(string.Format("Couldn't find Account name header text for project: {0}", ws.Name));
+				}
 
 				// Check sheet
-				if (!budgetSheet.Cells[budgetrow-1, Options.Default.CostBudgetACCol].GetValue<string>().Equals("Account Name", StringComparison.OrdinalIgnoreCase))
+				if (!budgetSheet.Cells[budgetrow-1, Options.Default.CostBudgetAccCol].GetValue<string>().Equals("Account Name", StringComparison.OrdinalIgnoreCase))
 				{
-					LogBox(string.Format("Didn't find \"Account Name\" in expected cell in cost budget for ({0}))", ws.Name));
-					continue;
+					throw new ArgumentException(string.Format("ERROR: Didn't find \"Account Name\" in expected cell in cost budget for ({0}))", ws.Name));
 				}
 
 				var mergedValue = new Dictionary<int, Tuple<decimal, decimal>>(); // row -> budgetfull, budgetytd
+				var missingActuals = new Dictionary<string, Tuple<decimal, decimal>>(StringComparer.OrdinalIgnoreCase);
+				Tuple<string, decimal, decimal> netprofit = null;
 
-				string budgetAccName = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetACCol].GetValue<string>();
-
+				string budgetAccName = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetAccCol].GetValue<string>();
+				int irow;
 				while (!IsEmptyCell(budgetAccName))
 				{
+					//LogBox("Premerge: (" + budgetAccName + ")");
 					var merge = false;
 					if (mergeAccounts.ContainsKey(budgetAccName))
 					{
 						budgetAccName = mergeAccounts[budgetAccName];
 						merge = true;
 					}
-
-					int irow = -1;
+					//LogBox("[" + budgetSheet.Name + "]" + "Processing Budget acc: (" + budgetAccName + ")" + " merge: " + merge);
+					irow = -1;
 					try
 					{
 						irow = searchText(ws, wsrow, 1, budgetAccName);
 					}
 					catch (ArgumentException)
 					{
-						// Missing budget
-						LogBox(string.Format("MISSING FROM COST ACTUAL ({0}) from ({1}).", budgetAccName, ws.Name));
+						// Missing from actual
+						//LogBox(string.Format("MISSING FROM COST ACTUAL ({0}) from ({1}).", budgetAccName, ws.Name));
 					}
+					var budgetfull = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetYearCol].GetValue<decimal>();
+					var budgetytd = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetYearCol + 1, budgetrow, Options.Default.CostBudgetYearCol + months].Sum(cell => { return getDecimal(cell); });
+					//LogBox("Full: " + budgetfull + " YTD: " + budgetytd);
+
+					//LogBox(string.Format("Proj ({0}), Acc ({1}), full ({2})", ws.Name, budgetAccName, budgetfull));
 					if (irow > 0)
 					{
-						var budgetfull = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetYearCol].GetValue<decimal>();
-						var budgetytd = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetYearCol + 1, budgetrow, Options.Default.CostBudgetYearCol + months].Sum(cell => { return getDecimal(cell); });
-
 						if (merge)
 						{
 							if (mergedValue.ContainsKey(irow))  // sum values
@@ -435,12 +574,24 @@ namespace XeroDataDump
 								mergedValue[irow] = new Tuple<decimal, decimal>(budgetfull, budgetytd);
 						}
 						else {
+							// if not merging insert to found item
+							//LogBox("irow: " + irow);
 							ws.Cells[irow, PROJ_BUDGET_COLUMN].Value = budgetytd;
 							ws.Cells[irow, PROJ_BUDGET_COLUMN - 1].Value = budgetfull;
 						}
+					} else
+					{
+						// build list of budgets with missing actuals to prepend at top of report
+						if (budgetAccName.Equals(NET_PROFIT, StringComparison.OrdinalIgnoreCase) || budgetAccName.Equals(GNET_PROFIT, StringComparison.OrdinalIgnoreCase))
+							netprofit = new Tuple<string, decimal, decimal>(budgetAccName, budgetfull, budgetytd);
+						else if (missingActuals.ContainsKey(budgetAccName))  // sum values
+							missingActuals[budgetAccName] = new Tuple<decimal, decimal>(missingActuals[budgetAccName].Item1 + budgetfull, missingActuals[budgetAccName].Item2 + budgetytd);
+						else  // new values
+							missingActuals[budgetAccName] = new Tuple<decimal, decimal>(budgetfull, budgetytd);
+						
 					}
 					budgetrow = budgetrow + 1;
-					budgetAccName = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetACCol].GetValue<string>();
+					budgetAccName = budgetSheet.Cells[budgetrow, Options.Default.CostBudgetAccCol].GetValue<string>();
 				}
 
 				// process merged accounts
@@ -452,10 +603,74 @@ namespace XeroDataDump
 					ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Value = budgetytd;
 					ws.Cells[wsrow, PROJ_BUDGET_COLUMN - 1].Value = budgetfull;
 				}
+				wsrow = PROJ_OTHERS_ROW + 1;
+				// process budgets with missing actuals
+				foreach (var kvpair in missingActuals)
+				{
+					//LogBox("dumping: " + kvpair.Key);
+					if (IncomeAccounts.Contains(kvpair.Key))
+					{
+						irow = wsrow;
+						if (kvpair.Key.StartsWith("Total"))
+						{
+							try { irow = searchText(ws, wsrow, 1, "Operating Expenses") + 1; }
+							catch (ArgumentException)
+							{
+								ws.Cells[ws.Dimension.Rows + 1, 1].Value = "Operating Expenses";
+								irow = searchText(ws, wsrow, 1, "Operating Expenses") + 1;
+							}
+							irow = irow - 1;
+						}
+					}
+					else
+					{
+						try { irow = searchText(ws, wsrow, 1, "Operating Expenses") + 1; }
+						catch (ArgumentException)
+						{
+							ws.Cells[ws.Dimension.Rows + 1, 1].Value = "Operating Expenses";
+							irow = searchText(ws, wsrow, 1, "Operating Expenses") + 1;
+						}
+						if (kvpair.Key.StartsWith("Total"))
+						{
+							irow = ws.Dimension.Rows;
+						}
+					}
+					//LogBox("dumping: " + kvpair.Key + " in: " + ws.Cells[irow, 1].Address);
+					ws.InsertRow(irow, 1);
+					ws.Cells[irow, 1].Value = kvpair.Key;
+					ws.Cells[irow, PROJ_BUDGET_COLUMN].Value = kvpair.Value.Item2;
+					ws.Cells[irow, PROJ_BUDGET_COLUMN - 1].Value = kvpair.Value.Item1;
+					ws.Cells[irow, PROJ_ACTUAL_COLUMN].Value = 0; // fill in missing actual
+					addFormula(ws, kvpair.Key, irow, PROJ_ACTUAL_COLUMN, PROJ_BUDGET_COLUMN);
+				}
+				if (netprofit != null)
+				{
+					irow = ws.Dimension.Rows + 1;
+					ws.Cells[irow, 1].Value = netprofit.Item1;
+					ws.Cells[irow, PROJ_ACTUAL_COLUMN].Value = netprofit.Item2;
+					ws.Cells[irow, PROJ_BUDGET_COLUMN - 1, irow, PROJ_BUDGET_COLUMN].Value = 0; // fill in missing actual
+					addFormula(ws, netprofit.Item1, irow, PROJ_ACTUAL_COLUMN, PROJ_BUDGET_COLUMN);
+					irow++;
+				}
 				//Format cells
-				ws.Cells[PROJ_OTHERS_ROW, PROJ_BUDGET_COLUMN - 1, ws.Dimension.Rows, PROJ_ACTUAL_COLUMN + 1].Style.Numberformat.Format = "$#,##0.00";
-				ws.Cells[PROJ_OTHERS_ROW, PROJ_ACTUAL_COLUMN + 2, ws.Dimension.Rows, PROJ_ACTUAL_COLUMN + 2].Style.Numberformat.Format = "0.00%";
+				formatAccCells(ws);
 
+				doneProjs.Add(ws.Name);
+				if (passone && index == sheets.Count-1)
+				{
+					// add budget sheets
+					foreach (var bs in budget.Worksheets)
+					{
+						if (doneProjs.Contains(bs.Name) || Options.Default.IgnoreBudgetSheets.Contains(bs.Name)) { continue; }
+						ws = wb.Worksheets.Add(bs.Name);
+						setupProjectSheet(ws, bs.Name, from, to);
+						sheets.Add(bs.Name);
+						LogBox(string.Format("WARNING: Have Budget for project ({0}) but no actuals.", bs.Name));
+					}
+
+					passone = false;
+				}
+				index++;
 			}
 		}
 
@@ -475,20 +690,28 @@ namespace XeroDataDump
 				{
 					LogBox("ERROR: Missing name in timesheet for ({0}). Expect name in F3.");
 				}
-				// get position column
-				var poscell = from cell in posSheet.Cells["1:1"]
-							  where cell.GetValue<string>().Equals(name)
-							  select cell;
-				if (poscell == null)
-				{
-					LogBox(string.Format("Missing staff member in Timesheet Positions for ({0}) sheet. Perhaps this sheet needs to be ignored?", ws.Name));
-				}
+                // get position column
+                ExcelRangeBase poscell;
+
+
+                try
+                {
+                    poscell = (from cell in posSheet.Cells["1:1"]
+                               where cell.GetValue<string>().Equals(name)
+                               select cell).Single();
+                }
+                catch (Exception e)
+                {
+                    LogBox(string.Format("Cannot find staff member in Positions. Sheet: ({0}), Name: ({1})" +
+                        "\n {2}", ws.Name, name, e));
+                    throw;
+                }
 				var irow = 11;
-				for (int i = 0; i < months; i++)
+				for (int i = 1; i <= months; i++)
 				{
 					// get position for month
-					var pos = poscell.First().Offset(1, 0).GetValue<int>();
-
+					var pos = poscell.Offset(i, 0).GetValue<int>();
+					//LogBox("Pos: (" + poscell.First().Address + ") Name: (" + name + ") pos: (" + pos + ") ");
 					var position = posIDmap.ContainsKey(pos) ? posIDmap[pos].Item1 : "";
 					if (position.Equals(""))
 					{
@@ -505,7 +728,8 @@ namespace XeroDataDump
 							// sanity check
 							if (TIMESHEET_BAD_PROJS.Contains(project))
 							{
-								LogBox("ERROR: Cannot sync to Timesheet rows. \"Rows between months\" is likely set incorrectly.");
+								LogBox(string.Format("ERROR: Cannot sync to Timesheet rows. \"Rows between months\" is likely set incorrectly or sheet has wrong layout." +
+                                    "\nSheet: {0}, Name: {1}, Data: {2}", ws.Name, name, project));
 								return;
 							}
 							if (overheadProjs.Contains(project))
@@ -514,7 +738,7 @@ namespace XeroDataDump
 								project = projCollation[project];
 
 							if (!projPosHours.ContainsKey(project)) { projPosHours[project] = new Dictionary<string, decimal>(); }
-							if (!projPosHours[project].ContainsKey(position)) { projPosHours[project][position] = 0; }
+							if (!projPosHours[project].ContainsKey(position)) { projPosHours[project][position] = 0; } // LogBox(string.Format("ADDING POSITION {0} TO {1}", position, project));
 							projPosHours[project][position] = projPosHours[project][position] + 
 								ws.Cells[irow, TIMESHEET_HOURS_TOTAL].GetValue<decimal>();
 						}
@@ -541,6 +765,7 @@ namespace XeroDataDump
 
 			foreach (var ws in worksheets)
 			{
+				if (ws == null) { continue; }
 				if (ws.Name.Equals("Overall PL", StringComparison.OrdinalIgnoreCase)) { continue; }
 				//prepare for overheads:
 				if (ws.Name.Equals("Overheads"))
@@ -577,13 +802,33 @@ namespace XeroDataDump
 					doneProjs.Add(ws.Name);
 				}
 				var posdone = new List<string>();
+				// dictionary of position : ID, position, actualhours, budgetfullhours, budgetYTD
+				Dictionary<string, Tuple<int, string, decimal, decimal, decimal>> mapping = new Dictionary<string, Tuple<int, string, decimal, decimal, decimal>>();
+
 				var wsrow = PROJ_HOURS_ROW + 1;
 
 				var budgetskip = false;
 				if (budgetSheet == null) { LogBox(string.Format("No Time Budget found for ({0})", ws.Name)); budgetskip = true; }
 				if (!budgetskip)
 				{
-					var budgetrow = Options.Default.TimeBudgetDateRow + 2;
+					int budgetrow;
+					int budgetrowStop;
+					try
+					{
+						budgetrow = searchText(budgetSheet, 1, Options.Default.TBSearchCol, Options.Default.TBStartRowText, skipempty: true) + 1;
+					}
+					catch (ArgumentException)
+					{
+						throw new ArgumentException(string.Format("Couldn't find Time Budget Start Row Search text for project: {0}", ws.Name));
+					}
+					try
+					{
+						budgetrowStop = searchText(budgetSheet, 1, Options.Default.TBSearchCol, Options.Default.TBEndRowText, skipempty: true);
+					}
+					catch (ArgumentException)
+					{
+						throw new ArgumentException(string.Format("Couldn't find Time Budget End Row Search text for project: {0}", ws.Name));
+					}
 
 					// Check sheet
 					var test = budgetSheet.Cells[budgetrow - 2, Options.Default.TimeBudgetPosCol].GetValue<string>();
@@ -595,40 +840,44 @@ namespace XeroDataDump
 							LogBox(string.Format("Didn't find \"Expected days\" in expected cell in time budget for ({0})", ws.Name));
 						budgetskip = true;
 					}
+
 					if (!budgetskip)
 					{
-						string position = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetPosCol].GetValue<string>();
+						string position;
 
-						while (!position.Contains("Total"))
+						for (; budgetrow < budgetrowStop; budgetrow++)
 						{
+							position = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetPosCol].GetValue<string>();
 							var sumToDate = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetYearCol, budgetrow, Options.Default.TimeBudgetYearCol + months - 1].Sum(cell => { return getDecimal(cell); });
 							var sumYear = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetYearCol, budgetrow, Options.Default.TimeBudgetYearCol + 11].Sum(cell => { return getDecimal(cell); });
 							//ws.Cells[budgetrow, PROJ_BUDGET_COLUMN].Value
 							if (sumToDate != 0 || sumYear != 0)
 							{
-								// insert position if values
-								ws.InsertRow(wsrow, 1);
-								ws.Cells[wsrow, PROJ_BUDGET_COLUMN - 1].Value = sumYear;
-								ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Value = sumToDate;
-								ws.Cells[wsrow, 1].Value = position;
-								// Insert Actual time from timesheet mapping
-								if (projHours != null)
+								if (position == null)
 								{
-									if (projHours.ContainsKey(position))
-									{
-										// DIVIDE BY HOURS IN DAY
-										ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Value = projHours[position] / hoursinday;
-										posdone.Add(position);
-									}
+									throw new ArgumentException(string.Format("ERROR: Empty position name in Time Budget with allocated hours. Project ({0}).", ws.Name));
 								}
-								wsrow = wsrow + 1;
+								// insert position if values
+								decimal actual = 0;
+								if (projHours != null && projHours.ContainsKey(position))
+								{
+									actual = projHours[position];
+									posdone.Add(position);
+								}
+								// actualhours, budgetfullhours, budgetYTD
+								Tuple<int, decimal> positem = null;
+								var got = posmap.TryGetValue(position, out positem);
+								if (!got) {
+									positem = new Tuple<int, decimal>(-100, 0);
+									LogBox(string.Format("WARNING: Position ({0}) not entered in Program -> Timesheets -> Positions. Maybe a typo?", position));
+								}
+								mapping[position] = new Tuple<int, string, decimal, decimal, decimal>(positem.Item1, position, actual, sumYear, sumToDate);
+								 
 							}
 							else
 							{
-								LogBox(string.Format("No Time Budget for position ({0}) for project ({1})", position, ws.Name));
+								//LogBox(string.Format("No Time Budget for position ({0}) for project ({1})", position, ws.Name));
 							}
-							budgetrow = budgetrow + 1;
-							position = budgetSheet.Cells[budgetrow, Options.Default.TimeBudgetPosCol].GetValue<string>();
 						}
 					}
 				}
@@ -638,23 +887,61 @@ namespace XeroDataDump
 					foreach (var pos in projHours)
 					{
 						if (posdone.Contains(pos.Key)) { continue; }
-						ws.InsertRow(wsrow, 1);
-						ws.Cells[wsrow, 1].Value = pos.Key;
-						// DIVIDE BY HOURS IN DAY
-						ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Value = pos.Value / hoursinday;
-						// INSERT Variance formulas, budget - actual, variance / budget
-						ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 1].Formula = ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Address + "-" + ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Address;
-						ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 1].Address + "/" + ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Address;
-						wsrow = wsrow + 1;
+						if (pos.Key.Equals("N/A") && !(pos.Value > 0)) { continue; } // skip "N/A" if zero value
+						if (pos.Key.Equals("N/A"))
+						{
+							mapping[pos.Key] = new Tuple<int, string, decimal, decimal, decimal>(-999, pos.Key, pos.Value, 0, 0);
+						} else
+						{
+							Tuple<int, decimal> positem = null;
+							var got = posmap.TryGetValue(pos.Key, out positem);
+							if (!got)
+							{
+								positem = new Tuple<int, decimal>(-100, 0);
+								LogBox(string.Format("WARNING: Position ({0}) not entered in Program -> Timesheets -> Positions. Maybe a typo?", pos.Key));
+							}
+							mapping[pos.Key] = new Tuple<int, string, decimal, decimal, decimal>(positem.Item1, pos.Key, pos.Value, 0, 0);
+						}
 					}
 				}
+				//insert sorted position values
+				var values = mapping.Values.ToList();
+				values.Sort((x, y) => y.Item1.CompareTo(x.Item1));
+				foreach (var item in values)
+				{
+					// dictionary of position : ID, position, actualhours, budgetfullhours, budgetYTD
+					ws.InsertRow(wsrow, 1);
+					ws.Cells[wsrow, 1].Value = item.Item2;
+					// DIVIDE BY HOURS IN DAY
+					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Value = item.Item3 / hoursinday;
+					ws.Cells[wsrow, PROJ_BUDGET_COLUMN - 1].Value = item.Item4;
+					ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Value = item.Item5;
+
+					// INSERT Variance formulas, budget - actual, variance / budget
+					addFormula(ws, null, wsrow, PROJ_ACTUAL_COLUMN, PROJ_BUDGET_COLUMN);
+
+					wsrow = wsrow + 1;
+				}
+
+				// Totals for staff days
+				ws.InsertRow(wsrow, 1);
+				bool entries = PROJ_HOURS_ROW + 1 < wsrow - 1;
+				if (entries)
+				{
+					ws.Cells[wsrow, PROJ_BUDGET_COLUMN - 1].Formula = "=SUM(" + ws.Cells[PROJ_HOURS_ROW + 1, PROJ_BUDGET_COLUMN - 1].Address + ":" + ws.Cells[wsrow - 1, PROJ_BUDGET_COLUMN - 1].Address + ")";
+					ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Formula = "=SUM(" + ws.Cells[PROJ_HOURS_ROW + 1, PROJ_BUDGET_COLUMN].Address + ":" + ws.Cells[wsrow - 1, PROJ_BUDGET_COLUMN].Address + ")";
+					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Formula = "=SUM(" + ws.Cells[PROJ_HOURS_ROW + 1, PROJ_ACTUAL_COLUMN].Address + ":" + ws.Cells[wsrow - 1, PROJ_ACTUAL_COLUMN].Address + ")";
+				}
+				ws.Cells[wsrow, 1].Value = TOTAL_STAFF_DAYS;
+				addFormula(ws, null, wsrow, PROJ_ACTUAL_COLUMN, PROJ_BUDGET_COLUMN);
+
 				//Format cells
-				ws.Cells[PROJ_HOURS_ROW, PROJ_BUDGET_COLUMN - 1, wsrow, PROJ_ACTUAL_COLUMN + 1].Style.Numberformat.Format = "#,##0.00";
-				ws.Cells[PROJ_HOURS_ROW, PROJ_ACTUAL_COLUMN + 2, wsrow, PROJ_ACTUAL_COLUMN + 2].Style.Numberformat.Format = "0.00%";
+				ws.Cells[PROJ_HOURS_ROW + 1, PROJ_BUDGET_COLUMN - 1, wsrow + 1, PROJ_ACTUAL_COLUMN + 1].Style.Numberformat.Format = NUMBER_FORMAT;
+				ws.Cells[PROJ_HOURS_ROW + 1, PROJ_ACTUAL_COLUMN + 2, wsrow + 1, PROJ_ACTUAL_COLUMN + 2].Style.Numberformat.Format = PERCENT_FORMAT;
 
 				var stoprow = wsrow;
 				// Insert Staff Cost section
-				wsrow = wsrow + 2;
+				wsrow = wsrow + 3;
 
 				for (int row = PROJ_HOURS_ROW + 1; row < stoprow; row++)
 				{
@@ -664,27 +951,39 @@ namespace XeroDataDump
 					var rateCell = ws.Cells[wsrow, ACTUALCOLUMN + 3];
 					if (posmap.ContainsKey(position))
 					{
-						rateCell.Value = posmap[position];
+						rateCell.Value = posmap[position].Item2;
 					}
 					else {
 						rateCell.Value = "N/A";
 					}
 					ws.Cells[wsrow, 1].Value = position;
 					// formulas ws.Cells[rowNum, ACTUALCOLUMN + 1].Formula = "=" + acell.Address + "-" + ws.Cells[rowNum, BUDGETCOLUMN].Address;
-					ws.Cells[wsrow, PROJ_BUDGET_COLUMN-1].Formula = "=" + ws.Cells[row, PROJ_BUDGET_COLUMN-1].Address + "*" + rateCell.Address;
-					ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Formula = "=" + ws.Cells[row, PROJ_BUDGET_COLUMN].Address + "*" + rateCell.Address;
-					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Formula = "=" + ws.Cells[row, PROJ_ACTUAL_COLUMN].Address + "*" + rateCell.Address;
+					//ws.Cells[rownum, actcol + 2].Formula = "=IFERROR(" + ws.Cells[rownum, actcol + 1].Address + "/" + ws.Cells[rownum, actcol].Address + ", \"\")";
+					ws.Cells[wsrow, PROJ_BUDGET_COLUMN-1].Formula = "=IFERROR(" + ws.Cells[row, PROJ_BUDGET_COLUMN-1].Address + "*" + rateCell.Address + ", \"\")";
+					ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Formula = "=IFERROR(" + ws.Cells[row, PROJ_BUDGET_COLUMN].Address + "*" + rateCell.Address + ", \"\")";
+					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Formula = "=IFERROR(" + ws.Cells[row, PROJ_ACTUAL_COLUMN].Address + "*" + rateCell.Address + ", \"\")";
 					// var
-					// budget - actual
-					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 1].Formula = "=" + ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Address + "-" + ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Address;
-					// variance / budget
-					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[wsrow, PROJ_ACTUAL_COLUMN + 1].Address + "/" + ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Address;
+					addFormula(ws, null, wsrow, PROJ_ACTUAL_COLUMN, PROJ_BUDGET_COLUMN);
+					
 					// increment things
 					wsrow = wsrow + 1;
 				}
+				// Totals for staff cost
+				ws.InsertRow(wsrow, 1);
+				if (entries)
+				{
+					ws.Cells[wsrow, PROJ_BUDGET_COLUMN - 1].Formula = "=SUM(" + ws.Cells[stoprow + 3, PROJ_BUDGET_COLUMN - 1].Address + ":" + ws.Cells[wsrow - 1, PROJ_BUDGET_COLUMN - 1].Address + ")";
+					ws.Cells[wsrow, PROJ_BUDGET_COLUMN].Formula = "=SUM(" + ws.Cells[stoprow + 3, PROJ_BUDGET_COLUMN].Address + ":" + ws.Cells[wsrow - 1, PROJ_BUDGET_COLUMN].Address + ")";
+					ws.Cells[wsrow, PROJ_ACTUAL_COLUMN].Formula = "=SUM(" + ws.Cells[stoprow + 3, PROJ_ACTUAL_COLUMN].Address + ":" + ws.Cells[wsrow - 1, PROJ_ACTUAL_COLUMN].Address + ")";
+				}
+				ws.Cells[wsrow, 1].Value = TOTAL_STAFF_COST;
+				addFormula(ws, null, wsrow, PROJ_ACTUAL_COLUMN, PROJ_BUDGET_COLUMN);
+
 				// format cells
-				ws.Cells[stoprow + 2, PROJ_BUDGET_COLUMN - 1, wsrow, PROJ_ACTUAL_COLUMN + 1].Style.Numberformat.Format = "$#,##0.00";
-				ws.Cells[stoprow + 2, PROJ_ACTUAL_COLUMN + 2, wsrow, PROJ_ACTUAL_COLUMN + 2].Style.Numberformat.Format = "0.00%";
+				ws.Cells[stoprow + 3, PROJ_BUDGET_COLUMN - 1, wsrow, PROJ_ACTUAL_COLUMN + 1].Style.Numberformat.Format = CURRENCY_FORMAT;
+				ws.Cells[stoprow + 3, PROJ_ACTUAL_COLUMN + 2, wsrow, PROJ_ACTUAL_COLUMN + 2].Style.Numberformat.Format = PERCENT_FORMAT;
+				// Rate column
+				ws.Cells[stoprow + 3, PROJ_ACTUAL_COLUMN + 3, wsrow, PROJ_ACTUAL_COLUMN + 3].Style.Numberformat.Format = CURRENCY_FORMAT;
 			}
 		}
 
@@ -706,7 +1005,7 @@ namespace XeroDataDump
 			object[] args = (object[])e.Argument;
 			//string orgName = (string)args[0];
 			//string budgetfname = (string)args[1];
-			string savefname = System.IO.Path.Combine(Options.Default.OutputDir, "report.xlsx");
+			string savefname = Options.Default.OutputFile;
 			DateTime to = (DateTime)args[0];
 			int year = (int)args[1];
 			int month = (int)args[2];
@@ -727,8 +1026,20 @@ namespace XeroDataDump
 			var costBudgetwb = new ExcelPackage(new FileInfo(Options.Default.CostBudgetFile)).Workbook;
 			var timeBudgetwb = new ExcelPackage(new FileInfo(Options.Default.TimeBudgetFile)).Workbook;
 			var timesheetwb = new ExcelPackage(new FileInfo(Options.Default.TimesheetFile)).Workbook;
+			
 			// delete old
-			File.Delete(savefname);
+			if (File.Exists(Options.Default.OutputFile))
+			{
+				var result = System.Windows.MessageBox.Show(string.Format("Warning: Report exists. Overwrite?:\n{0}", Options.Default.OutputFile),
+				"Warning: Delete existing report", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Warning, System.Windows.MessageBoxResult.Cancel);
+				if (result != System.Windows.MessageBoxResult.OK)
+				{
+					LogBox("User Cancelled.");
+					return;
+				}
+				File.Delete(Options.Default.OutputFile);
+			}
+			
 			var pkg = new ExcelPackage(new FileInfo(savefname));
 			
 			var wb = pkg.Workbook;
@@ -744,11 +1055,12 @@ namespace XeroDataDump
 
 			// DO PROJECT ACTUAL COSTS THEN PROJET BUDGET
 			processProjectActualCost(wb, start, end);
-			processProjectsCostBudget(wb, costBudgetwb, months);
+			processProjectsCostBudget(wb, costBudgetwb, months, start, end);
 
 			// Do project time budget
 			processProjectsTime(wb, timeBudgetwb, months);
 
+			addNetCostMargin(wb);
 			// autosize before save
 			foreach (var ws in wb.Worksheets)
 			{
@@ -758,42 +1070,287 @@ namespace XeroDataDump
 					ws.Column(ncol).Width = ws.Column(ncol).Width + 5;
 				}
 			}
-			// move overheads to first index
+			// Hide nill budget+actual rows (after autosize because autosize might unhide?)
+			hideNilAccounts(wb);
 
+			FormatExpense(wb);
+
+			UnderlineTotals(wb);
+			// move overheads to first index
 			wb.Worksheets.MoveAfter("Overheads", "Overall PL");
+
+			System.Drawing.Image logo = null;
+			if (!Options.Default.LogoFname.Equals("")) { logo = System.Drawing.Image.FromFile(Options.Default.LogoFname); }
+
+			// Add logo to all pages if logo (AFTER copying sheets because weird things happen when in reverse)
+			foreach (var ws in wb.Worksheets) {
+				if (logo != null)
+				{
+					AddLogo(ws, logo);
+				}
+				ws.PrinterSettings.Orientation = eOrientation.Landscape;
+				ws.PrinterSettings.FitToPage = true;
+			}
+			if (logo != null)
+			{
+				logo.Dispose();
+			}
+			
 			pkg.Save();
 
 			LogBox("Done Monthly dump.\n");
 
 		}
 
-		private static string getEmployeeName(Guid empID)
+		internal static void SplitSheets(object sender, DoWorkEventArgs e)
 		{
-			string emp = null;
-			if (employees.TryGetValue(empID, out emp))
+			worker = sender as BackgroundWorker;
+
+			if (!initXero()) { return; }
+			initOthers();
+
+			object[] args = (object[])e.Argument;
+			string fName = (string)args[0];
+
+			LogBox("Splitting report...");
+
+			var pkg = new ExcelPackage(new FileInfo(fName));
+			var wb = pkg.Workbook;
+
+			var dir = new FileInfo(fName).Directory;
+			dir = dir.CreateSubdirectory("Reports");
+			var dirname = dir.FullName;
+
+			// Delete old reports
+			var files = false;
+			foreach (var fn in Directory.EnumerateFiles(dirname, "*.xlsx"))
 			{
-				return emp;
+				files = true; break;
 			}
-			else
+			if (files)
 			{
-				var e = ap.Employees.Find(empID.ToString());
-				emp = e.FirstName + " " + e.LastName;
-				employees[empID] = emp;
-				return emp;
+				var result = System.Windows.MessageBox.Show(string.Format("Warning: Will delete all Excel files in Report folder:\n{0}", dirname),
+				"Warning: Delete old files", System.Windows.MessageBoxButton.OKCancel, System.Windows.MessageBoxImage.Warning, System.Windows.MessageBoxResult.Cancel);
+				if (result != System.Windows.MessageBoxResult.OK)
+				{
+					LogBox("User Cancelled.");
+					return;
+				}
+				foreach (var fn in Directory.EnumerateFiles(dirname, "*.xlsx"))
+				{
+					LogBox("Deleting... " + fn);
+					File.Delete(fn);
+				}
 			}
+
+			// Save individual sheets
+			foreach (var ws in wb.Worksheets)
+			{
+				string sheetfname = Path.Combine(dirname, string.Format("{0}.xlsx", ws.Name));
+				var sheetpkg = new ExcelPackage(new FileInfo(sheetfname));
+				var nws = sheetpkg.Workbook.Worksheets.Add(ws.Name, ws);
+
+				nws.PrinterSettings.Orientation = eOrientation.Landscape;
+				nws.PrinterSettings.FitToPage = true;
+				sheetpkg.Save();
+			}
+			LogBox("Split done.");
+		}
+
+		private static void addNetCostMargin(ExcelWorkbook wb)
+		{
+			foreach (var ws in wb.Worksheets)
+			{
+				int drow = ws.Dimension.Rows;
+				int prow = -1; int irow = -1;
+				try { prow = searchText(ws, ws.Dimension.Rows, 1, NET_PROFIT, reverse: true, skipempty: true); }
+				catch (ArgumentException) { }
+				try { irow = searchText(ws, ws.Dimension.Rows, 1, "Total Income", reverse: true, skipempty: true); }
+				catch (ArgumentException) { }
+				if (prow > 0 && irow > 0)
+				{
+					//ws.InsertRow(prow+1, 3);
+					ws.Cells[drow + 2, 1].Value = "% Margin";
+					ws.Cells[drow + 2, 2].Formula = "=B" + prow + "/B" + irow;
+					ws.Cells[drow + 2, 3].Formula = "=C" + prow + "/C" + irow;
+					ws.Cells[drow + 2, 4].Formula = "=D" + prow + "/D" + irow;
+					ws.Cells[drow + 2, 2, drow + 2, 4].Style.Numberformat.Format = PERCENT_FORMAT;
+				}
+
+				if (ws.Name.Equals("Overall PL")) { continue; }
+
+				int row = -1;
+				try { row = searchText(ws, ws.Dimension.Rows, 1, NET_PROFIT, reverse: true); }
+				catch (ArgumentException) { }
+				if (row > 0)
+				{
+					//ws.InsertRow(row+1, 1);
+					ws.Cells[row + 1, 1].Value = NET_COST_TITLE;
+					int srow = -1;
+					try { srow = searchText(ws, 1, 1, TOTAL_STAFF_COST, skipempty: true); }
+					catch (ArgumentException) { }
+					if (srow > 0) {
+						ws.Cells[row + 1, 2].Formula = "=B" + row + "-B"+srow;
+						ws.Cells[row + 1, 3].Formula = "=C" + row + "-C" + srow;
+						ws.Cells[row + 1, 4].Formula = "=D" + row + "-D" + srow;
+					} else
+					{
+						ws.Cells[row + 1, 2].Value = 0;
+						ws.Cells[row + 1, 3].Value = 0;
+						ws.Cells[row + 1, 4].Value = 0;
+					}
+					// add variance stuff (as income)
+					addFormula(ws, null, row+1, ACTUALCOLUMN, BUDGETCOLUMN, inc: true);
+
+					// formatting
+					formatAccCells(ws, row+1);
+				}
+			}
+		}
+
+		private static void hideNilAccounts(ExcelWorkbook wb)
+		{
+			foreach (var ws in wb.Worksheets)
+			{
+				//if (ws.Name.Equals("Overall PL")) { continue; }
+				var row = -1;
+				try { row = searchText(ws, ws.Dimension.Rows, 1, "Accounts", true, skipempty: true); }
+				catch (ArgumentException) { LogBox("CAN'T FIND Accounts?"); }
+				if (row > 0)
+				{
+					row++;
+					string data = ws.Cells[row, 1].GetValue<string>();
+					while (!IsEmptyCell(data))
+					{
+						var budget = ws.Cells[row, PROJ_BUDGET_COLUMN - 1].GetValue<decimal>();
+						var budgetytd = ws.Cells[row, PROJ_BUDGET_COLUMN].GetValue<decimal>();
+						var actual = ws.Cells[row, PROJ_ACTUAL_COLUMN].GetValue<decimal>();
+						if (!data.Equals("Operating Expenses") && !data.Contains("Total") && !data.Equals(NET_COST_TITLE))
+						{
+							if (budget == 0 && budgetytd == 0 && actual == 0)
+							{
+								if (Options.Default.DelEmptyAccounts)
+									ws.DeleteRow(row);
+								else
+									ws.Row(row).Hidden = true;
+							}
+						}
+						row++;
+						data = ws.Cells[row, 1].GetValue<string>();
+					}
+				}
+			}
+		}
+
+		private static int getLastUsedColumn(ExcelWorksheet ws, int row)
+		{
+			int col = 1;
+			for (int x = 1; x < 10; x++)
+			{
+				if (!IsEmptyCell(ws.Cells[row, x].GetValue<string>()) || !IsEmptyCell(ws.Cells[row, x].Formula))
+					col = x;
+			}
+			return col;
+		}
+
+		private static void SearchAndUnderline(ExcelWorksheet ws, string text)
+		{
+			int row = -1;
+			try { row = searchText(ws, 4, 1, text, skipempty: true, startswith: true); }
+			catch (ArgumentException) { row = -1; }
+			if (row > 0)
+			{
+				// find last used column
+				//var col = getLastUsedColumn(ws, row);
+				// Just kidding, we want all standard columns "totalled" up to column 6
+				var col = 6;
+				ws.Cells[row, 1, row, col].Style.Border.Top.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+				ws.Cells[row, 1, row, col].Style.Border.Bottom.Style = OfficeOpenXml.Style.ExcelBorderStyle.Double;
+				ws.Cells[row, 1, row, col].Style.Font.Bold = true;
+				ws.InsertRow(row, 1);
+			}
+		}
+
+		private static void UnderlineTotals(ExcelWorkbook wb)
+		{
+			foreach (var ws in wb.Worksheets)
+			{
+				//if (ws.Name.Equals("Overall PL")) { continue; }
+
+				int row;
+				try { row = searchText(ws, 1, 1, "Total", skipempty: true, startswith: true); }
+				catch (ArgumentException) { row = -1; }
+				while (row > 0)
+				{
+					// find last used column
+					//var col = getLastUsedColumn(ws, row);
+					// Just kidding, we want all standard columns "totalled" up to column 6
+					var col = 6;
+					ws.Cells[row, 1, row, col].Style.Border.Top.Style = OfficeOpenXml.Style.ExcelBorderStyle.Thin;
+
+					try { row = searchText(ws, row + 1, 1, "Total", skipempty: true, startswith: true); }
+					catch (ArgumentException) { row = -1; }
+				}
+
+				// do net profit
+				SearchAndUnderline(ws, NET_PROFIT);
+				SearchAndUnderline(ws, NET_COST_TITLE);
+			}
+		}
+		private static void FormatExpense(ExcelWorkbook wb)
+		{
+			foreach (var ws in wb.Worksheets)
+			{
+				//if (ws.Name.Equals("Overall PL")) { continue; }
+
+				int row = -1;
+				try { row = searchText(ws, 1, 1, "Operating Expenses", skipempty: true); }
+				catch (ArgumentException) { LogBox("CAN'T FIND Accounts? (For FormatExpense)"); }
+				if (row > 0)
+				{
+					ws.Cells[row, 1].Style.Font.Bold = true;
+					ws.InsertRow(row, 1);
+				}
+			}
+		}
+
+		private static void AddLogo(ExcelWorksheet ws, System.Drawing.Image logo)
+		{
+			ws.InsertRow(1, 1);
+			
+			var pic = ws.Drawings.AddPicture("logo", logo);
+			pic.SetPosition(0, 0);
+			pic.SetSize(50);
+			ws.Row(1).Height = logo.Height / 2.5D;
 		}
 
 		private static void setupProjectSheet(ExcelWorksheet ws, string title, DateTime from, DateTime to)
 		{
 			ws.Cells["A1"].Value = "Profit and loss"; ws.Cells["C1"].Value = "Begining"; ws.Cells["D1"].Value = "Ending";
-			ws.Cells["A2"].Value = title; ws.Cells["C2"].Value = from.ToShortDateString(); ws.Cells["D2"].Value = to.ToShortDateString();
+			ws.Cells["A2"].Value = "Project";
+			ws.Cells["B2"].Value = title; ws.Cells["C2"].Value = from; ws.Cells["D2"].Value = to;
 
 			// staff Hours
-			ws.Cells[PROJ_HOURS_ROW, 1].Value = "Staff Hours"; ws.Cells[PROJ_HOURS_ROW, PROJ_BUDGET_COLUMN-1].Value = "Budget Full"; ws.Cells[PROJ_HOURS_ROW, PROJ_BUDGET_COLUMN].Value = "Budget YTD";
-			ws.Cells[PROJ_HOURS_ROW, PROJ_ACTUAL_COLUMN].Value = "Actual"; ws.Cells[PROJ_HOURS_ROW, PROJ_ACTUAL_COLUMN + 1].Value = "Var"; ws.Cells[PROJ_HOURS_ROW, PROJ_ACTUAL_COLUMN + 2].Value = "Var %";
+			ws.Cells[PROJ_HOURS_ROW, 1].Value = "Staff Days"; ws.Cells[PROJ_HOURS_ROW, PROJ_BUDGET_COLUMN-1].Value = string.Format(FULL_YEAR, from.Year % 100, (from.Year % 100) + 1);
+			ws.Cells[PROJ_HOURS_ROW, PROJ_BUDGET_COLUMN].Value = "Budget YTD"; ws.Cells[PROJ_HOURS_ROW, PROJ_ACTUAL_COLUMN].Value = "Actual"; ws.Cells[PROJ_HOURS_ROW, PROJ_ACTUAL_COLUMN + 1].Value = "Var";
+			ws.Cells[PROJ_HOURS_ROW, PROJ_ACTUAL_COLUMN + 2].Value = "Var %"; ws.Cells[PROJ_HOURS_ROW, PROJ_ACTUAL_COLUMN + 3].Value = "Notes";
 			// staff Cost
-			ws.Cells[PROJ_COST_ROW, 1].Value = "Staff Cost"; ws.Cells[PROJ_COST_ROW, PROJ_BUDGET_COLUMN - 1].Value = "Budget Full"; ws.Cells[PROJ_COST_ROW, PROJ_BUDGET_COLUMN].Value = "Budget YTD";
-			ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN].Value = "Actual"; ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN + 1].Value = "Var"; ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN + 2].Value = "Var %"; ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN + 3].Value = "Rate";
+			ws.Cells[PROJ_COST_ROW, 1].Value = "Staff Cost"; ws.Cells[PROJ_COST_ROW, PROJ_BUDGET_COLUMN - 1].Value = string.Format(FULL_YEAR, from.Year % 100, (from.Year % 100) + 1);
+			ws.Cells[PROJ_COST_ROW, PROJ_BUDGET_COLUMN].Value = "Budget YTD"; ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN].Value = "Actual";
+			ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN + 1].Value = "Var"; ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN + 2].Value = "Var %";
+			ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN + 3].Value = "Rate"; ws.Cells[PROJ_COST_ROW, PROJ_ACTUAL_COLUMN + 4].Value = "Notes";
+
+			// Formatting
+			ws.Cells["A1:D1"].Style.Font.Bold = true; ws.Cells["A2"].Style.Font.Bold = true; ws.Cells["4:4"].Style.Font.Bold = true; ws.Cells["6:6"].Style.Font.Bold = true;
+			ws.Cells["A2"].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Right;
+			ws.Cells["B2"].Style.HorizontalAlignment = OfficeOpenXml.Style.ExcelHorizontalAlignment.Left;
+			ws.Cells["C2"].Style.Numberformat.Format = DATE_FORMAT; ws.Cells["D2"].Style.Numberformat.Format = DATE_FORMAT;
+
+			ws.Cells[PROJ_OTHERS_ROW, PROJ_BUDGET_COLUMN - 1].Value = string.Format(FULL_YEAR, from.Year % 100, (from.Year % 100) + 1);
+			ws.Cells[PROJ_OTHERS_ROW, PROJ_BUDGET_COLUMN].Value = "Budget YTD"; ws.Cells[PROJ_OTHERS_ROW, PROJ_ACTUAL_COLUMN].Value = "Actual";
+			ws.Cells[PROJ_OTHERS_ROW, PROJ_ACTUAL_COLUMN + 1].Value = "Var $"; ws.Cells[PROJ_OTHERS_ROW, PROJ_ACTUAL_COLUMN + 2].Value = "Var %";
+			ws.Cells[PROJ_OTHERS_ROW, 1].Value = "Accounts"; ws.Cells[PROJ_OTHERS_ROW, PROJ_ACTUAL_COLUMN + 3].Value = "Notes";
+			ws.Cells[string.Format("{0}:{0}", PROJ_OTHERS_ROW)].Style.Font.Bold = true;
 		}
 
 		private static Dictionary<string, Tuple<string,decimal>> getBudgetEmployees(ExcelWorksheet bws, DateTime from)
@@ -846,7 +1403,7 @@ namespace XeroDataDump
 			//collate projects
 			foreach (var k in preport.Keys.ToList())
 			{
-				//LogBox(kv.Key + " : " + string.Join(",", kv.Value));
+				//LogBox("Processing Project " + k);
 				if (projCollation.ContainsKey(k)) {
 					var target = projCollation[k];
 					if (target != k)
@@ -878,7 +1435,7 @@ namespace XeroDataDump
 				ExcelWorksheet ws = wb.Worksheets[k];
 				if (ws == null)
 				{
-					if (k.Equals("Unassigned") || k.Equals("Total"))
+					if (k.Equals("Total"))
 						continue;
 					else
 					{
@@ -886,16 +1443,14 @@ namespace XeroDataDump
 						setupProjectSheet(ws, k, from, to);
 					}
 				}
-				
-				var rownum = ws.Dimension.Rows;
-				rownum = rownum + 2;
-				ws.Cells[rownum, PROJ_BUDGET_COLUMN].Value = "Budget"; ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = "Actual"; ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Value = "Var $"; ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Value = "Var %";
-				ws.Cells[rownum, 1].Value = "Accounts";
+				var rownum = PROJ_OTHERS_ROW;
 				rownum++;
 
-				var mergedValue = new Dictionary<int, Tuple<string, decimal>>(); // row -> name, value
-				var mergeAddr = new Dictionary<string, int>(); // mergedname -> row
-
+				var incomelist = new List<string>();
+				var incomeitems = new Dictionary<string, decimal>();
+				var expenselist = new List<string>();
+				var expenseitems = new Dictionary<string, decimal>();
+				Tuple<string, decimal> netprofit = null;
 
 				int i = 0;
 				foreach (var line in projectReports[k])
@@ -905,62 +1460,94 @@ namespace XeroDataDump
 					if (HideAccounts.Contains(acct)) { i++; continue; }
 					var value = decimal.Parse(line);
 
-					// append merged accounts
+					// check if merging accounts
 					if (mergeAccounts.ContainsKey(acct))
 					{
-						// get merged row
-						var mergedName = mergeAccounts[acct];
-						int mergedRow;
-						bool skip = false;
-						if (mergeAddr.ContainsKey(mergedName))
-						{
-							mergedRow = mergeAddr[mergedName];
-							skip = true;
-						}
-						else
-						{
-							mergeAddr[mergedName] = mergedRow = rownum;
-						}
-						// update running total
-						if (mergedValue.ContainsKey(mergedRow))
-						{
-							mergedValue[mergedRow] = new Tuple<string, decimal>(mergedValue[mergedRow].Item1, mergedValue[mergedRow].Item2 + value);
-						}
-						else
-						{
-							mergedValue[mergedRow] = new Tuple<string, decimal>(mergedName, value);
-						}
-						if (skip) { i++; continue; }
+						acct = mergeAccounts[acct];
 					}
-					ws.Cells[rownum, 1].Value = acct;
-					ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = value;
-
-					// insert formulas
-					if (IncomeAccounts.Contains(ws.Cells[rownum, 1].Value))
-					{	// actual - budget
-						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Formula = "=" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address + "-" + ws.Cells[rownum, PROJ_BUDGET_COLUMN].Address;
-						// variance / actual
-						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Address + "/" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address;
+					decimal item = 0;
+					// income or expense?
+					if (acct.Equals(NET_PROFIT, StringComparison.OrdinalIgnoreCase) || acct.Equals(GNET_PROFIT, StringComparison.OrdinalIgnoreCase))
+					{
+						netprofit = new Tuple<string, decimal>(acct, value);
+					}
+					else if (IncomeAccounts.Contains(acct))
+					{
+						incomeitems.TryGetValue(acct, out item);
+						incomeitems[acct] = item + value;
+						if (!incomelist.Contains(acct))
+						{
+							if (acct.StartsWith("Total", StringComparison.OrdinalIgnoreCase))
+								incomelist.Add(acct);
+							else
+								incomelist.Insert(0, acct);
+						}
 					}
 					else
-					{   // budget - actual
-						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Formula = "=" + ws.Cells[rownum, PROJ_BUDGET_COLUMN].Address + "-" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Address;
-						// variance / budget
-						ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 2].Formula = "=" + ws.Cells[rownum, PROJ_ACTUAL_COLUMN + 1].Address + "/" + ws.Cells[rownum, PROJ_BUDGET_COLUMN].Address;
+					{
+						expenseitems.TryGetValue(acct, out item);
+						expenseitems[acct] = item + value;
+						if (!expenselist.Contains(acct))
+						{
+							if (acct.StartsWith("Total", StringComparison.OrdinalIgnoreCase))
+								expenselist.Add(acct);
+							else
+								expenselist.Insert(0, acct);
+						}
 					}
 
-					i++; rownum++;
+					i++;
 				}
 
-				// process merged accounts
-				foreach (var kvpair in mergedValue)
+				//income 
+				foreach (var acct in incomelist)
 				{
-					rownum = kvpair.Key;
-					var name = kvpair.Value.Item1;
-					var value = kvpair.Value.Item2;
-					ws.Cells[rownum, 1].Value = name;
-					ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = value;
+					ws.Cells[rownum, 1].Value = acct;
+					ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = incomeitems[acct];
+					ws.Cells[rownum, PROJ_BUDGET_COLUMN - 1, rownum, PROJ_BUDGET_COLUMN].Value = 0; // fill in missing actual
+
+					// insert formulas
+					addFormula(ws, acct, rownum, PROJ_ACTUAL_COLUMN, PROJ_BUDGET_COLUMN);
+					rownum++;
 				}
+				//LogBox(string.Format("Inserting for {0} at: {1}", ws.Name, rownum));
+				ws.Cells[rownum, 1].Value = "Operating Expenses";
+				rownum++;
+				//expense 
+				foreach (var acct in expenselist)
+				{
+
+					ws.Cells[rownum, 1].Value = acct;
+					ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = expenseitems[acct];
+					ws.Cells[rownum, PROJ_BUDGET_COLUMN - 1, rownum, PROJ_BUDGET_COLUMN].Value = 0; // fill in missing actual
+					// insert formulas
+					addFormula(ws, acct, rownum, PROJ_ACTUAL_COLUMN, PROJ_BUDGET_COLUMN);
+					rownum++;
+				}
+				if (netprofit != null)
+				{
+					ws.Cells[rownum, 1].Value = netprofit.Item1;
+					ws.Cells[rownum, PROJ_ACTUAL_COLUMN].Value = netprofit.Item2;
+					ws.Cells[rownum, PROJ_BUDGET_COLUMN - 1, rownum, PROJ_BUDGET_COLUMN].Value = 0; // fill in missing actual
+					addFormula(ws, null, rownum, PROJ_ACTUAL_COLUMN, PROJ_BUDGET_COLUMN, inc: true);
+					rownum++;
+				}
+			}
+		}
+
+		private static void addFormula(ExcelWorksheet ws, string accname, int rownum, int actcol, int budcol, bool inc = false)
+		{
+			if (inc || accname != null && IncomeAccounts.Contains(accname))
+			{   // actual - budget
+				ws.Cells[rownum, actcol + 1].Formula = "=IFERROR(" + ws.Cells[rownum, actcol].Address + "-" + ws.Cells[rownum, budcol].Address + ", \"\")";
+				// variance / actual
+				ws.Cells[rownum, actcol + 2].Formula = "=IFERROR(" + ws.Cells[rownum, actcol + 1].Address + "/" + ws.Cells[rownum, actcol].Address + ", \"\")";
+			}
+			else
+			{   // budget - actual
+				ws.Cells[rownum, actcol + 1].Formula = "=IFERROR(" + ws.Cells[rownum, budcol].Address + "-" + ws.Cells[rownum, actcol].Address + ", \"\")";
+				// variance / budget
+				ws.Cells[rownum, actcol + 2].Formula = "=IFERROR(" + ws.Cells[rownum, actcol + 1].Address + "/" + ws.Cells[rownum, budcol].Address + ", \"\")";
 			}
 		}
 

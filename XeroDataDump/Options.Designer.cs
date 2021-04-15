@@ -158,36 +158,12 @@ namespace XeroDataDump {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
-        public string OutputDir {
+        public string OutputFile {
             get {
-                return ((string)(this["OutputDir"]));
+                return ((string)(this["OutputFile"]));
             }
             set {
-                this["OutputDir"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public int CostBudgetRow {
-            get {
-                return ((int)(this["CostBudgetRow"]));
-            }
-            set {
-                this["CostBudgetRow"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public int CostBudgetACCol {
-            get {
-                return ((int)(this["CostBudgetACCol"]));
-            }
-            set {
-                this["CostBudgetACCol"] = value;
+                this["OutputFile"] = value;
             }
         }
         
@@ -200,18 +176,6 @@ namespace XeroDataDump {
             }
             set {
                 this["CostBudgetYearCol"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public int TimeBudgetDateRow {
-            get {
-                return ((int)(this["TimeBudgetDateRow"]));
-            }
-            set {
-                this["TimeBudgetDateRow"] = value;
             }
         }
         
@@ -248,18 +212,6 @@ namespace XeroDataDump {
             }
             set {
                 this["IncAccts"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("0")]
-        public int CostBudgetRow_Proj {
-            get {
-                return ((int)(this["CostBudgetRow_Proj"]));
-            }
-            set {
-                this["CostBudgetRow_Proj"] = value;
             }
         }
         
@@ -368,6 +320,114 @@ namespace XeroDataDump {
             }
             set {
                 this["MonthRows"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string TBStartRowText {
+            get {
+                return ((string)(this["TBStartRowText"]));
+            }
+            set {
+                this["TBStartRowText"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string TBEndRowText {
+            get {
+                return ((string)(this["TBEndRowText"]));
+            }
+            set {
+                this["TBEndRowText"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int TBSearchCol {
+            get {
+                return ((int)(this["TBSearchCol"]));
+            }
+            set {
+                this["TBSearchCol"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public int CostBudgetAccCol {
+            get {
+                return ((int)(this["CostBudgetAccCol"]));
+            }
+            set {
+                this["CostBudgetAccCol"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string CostBudgetACHeader {
+            get {
+                return ((string)(this["CostBudgetACHeader"]));
+            }
+            set {
+                this["CostBudgetACHeader"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string LogoFname {
+            get {
+                return ((string)(this["LogoFname"]));
+            }
+            set {
+                this["LogoFname"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string IgnoreBudgetSheets {
+            get {
+                return ((string)(this["IgnoreBudgetSheets"]));
+            }
+            set {
+                this["IgnoreBudgetSheets"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string NetProfitLabel {
+            get {
+                return ((string)(this["NetProfitLabel"]));
+            }
+            set {
+                this["NetProfitLabel"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool DelEmptyAccounts {
+            get {
+                return ((bool)(this["DelEmptyAccounts"]));
+            }
+            set {
+                this["DelEmptyAccounts"] = value;
             }
         }
     }
